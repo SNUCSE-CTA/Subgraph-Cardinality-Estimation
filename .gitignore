@@ -1,6 +1,7 @@
 build/
 cmake-build-*/
 graphs/
+dataset/
 .idea/
 # Prerequisites
 *.d
