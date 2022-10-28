@@ -72,18 +72,36 @@ namespace daf {
         srand(0);
         dag_.BuildDAG(-1);
         if (!FilterByTopDownWithInit()) return false;
-        if (!FilterByBottomUp()) return false;
-        if (!FilterByTopDown()) return false;
-        for (Size iteration = 0; iteration < 5; iteration++) {
-            dag_.BuildDAG(rand()%query_.GetNumVertices());
-            if (!FilterByTopDown()) return false;
-            if (!FilterByBottomUp()) return false;
-            if (!FilterByTopDown()) return false;
+        Size cand_size_ = 0;
+        for (Vertex i = 0; i < query_.GetNumVertices(); ++i) {
+            cand_size_ += candidate_set_size_[i];
         }
-        dag_.BuildDAG(-1);
-        if (!FilterByTopDown()) return false;
-        if (!FilterByBottomUp()) return false;
-        if (!FilterByTopDown()) return false;
+//        fprintf(stderr, "candidate_set_size = %u\n", cand_size_);
+
+        Size stable_iter = 0;
+        while (true) {
+            stable_iter++;
+            bool pruned = false;
+            if (FilterByBottomUp()) pruned = true;
+            if (FilterByTopDown()) pruned = true;
+            cand_size_ = 0;
+            for (Vertex i = 0; i < query_.GetNumVertices(); ++i) {
+                cand_size_ += candidate_set_size_[i];
+            }
+//            fprintf(stderr, "Iteration [%u] candidate_set_size = %u\n",stable_iter, cand_size_);
+            if (!pruned) break;
+        }
+
+        cand_size_ = 0;
+        for (Vertex i = 0; i < query_.GetNumVertices(); ++i) {
+            cand_size_ += candidate_set_size_[i];
+        }
+
+        cand_size_ = 0;
+        for (Vertex i = 0; i < query_.GetNumVertices(); ++i) {
+            cand_size_ += candidate_set_size_[i];
+        }
+//        fprintf(stderr, "candidate_set_size = %u\n", cand_size_);
 
         ConstructCS();
         BuildQueryTree();
@@ -164,6 +182,10 @@ namespace daf {
 
     bool CandidateSpace::FilterByBottomUp() {
         bool result = true;
+        bool pruned = false;
+        int *neighbor_label_frequency = new int[data_.GetNumLabels()];
+        int *tmp_label_frequency = new int[data_.GetNumLabels()];
+        bool *in_neighbor_cs = new bool[data_.GetNumVertices()];
         for (Size i = 0; i < query_.GetNumVertices(); ++i) {
             Vertex cur = dag_.GetVertexOrderedByBFS(query_.GetNumVertices() - i - 1);
 
@@ -197,13 +219,44 @@ namespace daf {
                 num_child += 1;
             }
 
+            memset(neighbor_label_frequency, 0, sizeof(Size) * data_.num_label_);
+            memset(in_neighbor_cs, 0, sizeof(bool) * data_.GetNumVertices());
+            for (Size nidx = query_.GetStartOffset(cur); nidx < query_.GetEndOffset(cur); ++nidx) {
+                Vertex q_neighbor = query_.GetNeighbor(nidx);
+                neighbor_label_frequency[query_.GetLabel(q_neighbor)]++;
+                for (Size ncsidx = 0; ncsidx < candidate_set_size_[q_neighbor]; ++ncsidx) {
+                    Vertex d_neighbor = candidate_set_[q_neighbor][ncsidx];
+                    in_neighbor_cs[d_neighbor] = true;
+                }
+            }
+
+
             for (Size i = 0; i < candidate_set_size_[cur]; ++i) {
                 Vertex cand = candidate_set_[cur][i];
-                if (num_visit_cs_[cand] != num_child) {
+                memcpy(tmp_label_frequency, neighbor_label_frequency, sizeof(int) * data_.GetNumLabels());
+                // Check neighbor safety
+                bool is_neighbor_safe = true;
+                for (Size nidx = data_.GetStartOffset(cand); nidx < data_.GetEndOffset(cand); nidx++) {
+                    Vertex d_neighbor = data_.GetNeighbor(nidx);
+                    if (in_neighbor_cs[d_neighbor]) {
+                        tmp_label_frequency[data_.GetLabel(d_neighbor)]--;
+                    }
+                }
+                for (int l = 0; l < data_.GetNumLabels(); ++l) {
+                    if (tmp_label_frequency[l] > 0) {
+                        is_neighbor_safe = false;
+                        break;
+                    }
+                }
+                if ((num_visit_cs_[cand] != num_child) || (is_neighbor_safe == false)) {
                     candidate_set_[cur][i] =
                             candidate_set_[cur][candidate_set_size_[cur] - 1];
                     candidate_set_size_[cur] -= 1;
                     --i;
+                    pruned = true;
+                }
+                else {
+                    num_cs_edges_ += cand_to_cs_idx_[cand];
                 }
             }
 
@@ -217,12 +270,16 @@ namespace daf {
                 num_visit_cs_[visited_candidates_[num_visitied_candidates_]] = 0;
             }
         }
+        delete[] neighbor_label_frequency;
+        delete[] tmp_label_frequency;
+        delete[] in_neighbor_cs;
 
-        return result;
+        return pruned;
     }
 
     bool CandidateSpace::FilterByTopDown() {
         bool result = true;
+        bool pruned = false;
         int *neighbor_label_frequency = new int[data_.GetNumLabels()];
         int *tmp_label_frequency = new int[data_.GetNumLabels()];
         bool *in_neighbor_cs = new bool[data_.GetNumVertices()];
@@ -296,6 +353,7 @@ namespace daf {
                             candidate_set_[cur][candidate_set_size_[cur] - 1];
                     candidate_set_size_[cur] -= 1;
                     --i;
+                    pruned = true;
                 }
                 else {
                     num_cs_edges_ += cand_to_cs_idx_[cand];
@@ -316,7 +374,7 @@ namespace daf {
         delete[] neighbor_label_frequency;
         delete[] tmp_label_frequency;
         delete[] in_neighbor_cs;
-        return result;
+        return pruned;
     }
 
     void CandidateSpace::ConstructCS() {
@@ -480,8 +538,6 @@ namespace daf {
     }
 
 
-
-
     void CandidateSpace::ConstructTreeDP() {
 //        fprintf(stderr, "DAGROOT = %d\n",dag_.GetRoot());
         double *num_tree_child = new double[data_.GetNumVertices()];
@@ -509,22 +565,27 @@ namespace daf {
             }
         }
         sample_dist.resize(query_.GetNumVertices());
+        sample_candidates.resize(query_.GetNumVertices());
         candidate_weights_ = new double***[query_.GetNumVertices()];
         for (Size i = 0; i < query_.GetNumVertices(); ++i) {
             Vertex u = dag_.GetVertexOrderedByTree(query_.GetNumVertices() - i - 1);
             candidate_weights_[u] = new double**[dag_.GetNumTreeChildren(u)];
             sample_dist[u].resize(dag_.GetNumTreeChildren(u));
+            sample_candidates[u].resize(dag_.GetNumTreeChildren(u));
             for (Size ic = 0; ic < dag_.GetNumTreeChildren(u); ++ic) {
                 Vertex uc = dag_.GetTreeChild(u, ic);
                 candidate_weights_[u][ic] = new double*[GetCandidateSetSize(u)];
                 sample_dist[u][ic].resize(GetCandidateSetSize(u));
+                sample_candidates[u][ic].resize(GetCandidateSetSize(u));
                 for (Size iv = 0; iv < GetCandidateSetSize(u); ++iv) {
                     Vertex v = GetCandidate(u, iv);
                     candidate_weights_[u][ic][iv] = new double[GetCandidateSetSize(uc)];
                     for (Size ivc = 0; ivc < GetCandidateSetSize(uc); ++ivc) {
                         Vertex vc = GetCandidate(uc, ivc);
-                        candidate_weights_[u][ic][iv][ivc] = num_trees_[uc][ivc] * (data_.CheckEdgeExist(v, vc) ? 1 : 0) ;
-                        //if (ivc > 0) candidate_weights_[u][ic][iv][ivc] += candidate_weights_[u][ic][iv][ivc-1];
+                        candidate_weights_[u][ic][iv][ivc] = num_trees_[uc][ivc] * (data_.CheckEdgeExist(v, vc) ? 1 : 0);
+                        if (candidate_weights_[u][ic][iv][ivc] > 0) {
+                            sample_candidates[u][ic][iv].push_back(ivc);
+                        }
                     }
                     sample_dist[u][ic][iv] = std::discrete_distribution<int>(candidate_weights_[u][ic][iv], candidate_weights_[u][ic][iv] + GetCandidateSetSize(uc));
                 }
@@ -534,6 +595,9 @@ namespace daf {
         std::vector <double> root_weight(GetCandidateSetSize(root), 0.0);
         for (int root_candidate_idx = 0; root_candidate_idx < GetCandidateSetSize(root); ++root_candidate_idx) {
             root_weight[root_candidate_idx] = num_trees_[root][root_candidate_idx];
+            if (num_trees_[root][root_candidate_idx] > 0) {
+                root_candidates_.push_back(root_candidate_idx);
+            }
         }
         root_weights_ = std::discrete_distribution<int>(root_weight.begin(), root_weight.end());
         total_trees_ = 0.0;
@@ -548,29 +612,53 @@ namespace daf {
     inline Size sample(std::discrete_distribution<int> &weighted_distr) {
         return weighted_distr(gen);
     }
+    inline Size sample_no_weight(std::vector<Vertex> &candidate_indices) {
+        return candidate_indices[rand() % candidate_indices.size()];
+    }
 
-    void CandidateSpace::SampleCSTree(Vertex *tree_sample) {
+    double CandidateSpace::SampleCSTree(Vertex *tree_sample, bool HTSampling) {
         memset(tree_sample, -1, sizeof(Vertex) * query_.GetNumVertices());
-        tree_sample[dag_.GetRoot()] = sample(root_weights_);
-        for (Size i = 0; i < query_.GetNumVertices(); ++i) {
-            Vertex u = dag_.GetVertexOrderedByTree(i);
-            for (Size ic = 0; ic < dag_.GetNumTreeChildren(u); ++ic) {
-                Vertex uc = dag_.GetTreeChild(u, ic);
-                tree_sample[uc] = sample(sample_dist[u][ic][tree_sample[u]]);
+        if (!HTSampling) {
+            tree_sample[dag_.GetRoot()] = sample(root_weights_);
+            for (Size i = 0; i < query_.GetNumVertices(); ++i) {
+                Vertex u = dag_.GetVertexOrderedByTree(i);
+                for (Size ic = 0; ic < dag_.GetNumTreeChildren(u); ++ic) {
+                    Vertex uc = dag_.GetTreeChild(u, ic);
+                    tree_sample[uc] = sample(sample_dist[u][ic][tree_sample[u]]);
+                }
             }
+            for (Size i = 0; i < query_.GetNumVertices(); ++i) {
+                tree_sample[i] = GetCandidate(i, tree_sample[i]);
+            }
+            return 1.0;
         }
-        for (Size i = 0; i < query_.GetNumVertices(); ++i) {
-            tree_sample[i] = GetCandidate(i, tree_sample[i]);
+        else {
+            double prob = 1.0;
+            tree_sample[dag_.GetRoot()] = sample_no_weight(root_candidates_);
+            prob *= (root_candidates_.size());
+            for (Size i = 0; i < query_.GetNumVertices(); ++i) {
+                Vertex u = dag_.GetVertexOrderedByTree(i);
+                for (Size ic = 0; ic < dag_.GetNumTreeChildren(u); ++ic) {
+                    Vertex uc = dag_.GetTreeChild(u, ic);
+                    tree_sample[uc] = sample_no_weight(sample_candidates[u][ic][tree_sample[u]]);
+                    prob *= sample_candidates[u][ic][tree_sample[u]].size();
+                }
+            }
+            for (Size i = 0; i < query_.GetNumVertices(); ++i) {
+                tree_sample[i] = GetCandidate(i, tree_sample[i]);
+            }
+            return (prob == 0 ? 0.0 : prob);
         }
     }
 
-    double CandidateSpace::EstimateEmbeddings(Size num_samples) {
+    double CandidateSpace::EstimateEmbeddings(Size num_samples, bool HTSampling) {
         bool *seen = new bool[data_.GetNumVertices()];
         memset(seen, 0, sizeof(bool) * data_.GetNumVertices());
         Vertex *tree_sample = new Vertex[query_.GetNumVertices()];
         Size success = 0, t;
+        double ht_est = 0.0;
         for (t = 1; t <= num_samples; ++t) {
-            SampleCSTree(tree_sample);
+            double ht_prob = SampleCSTree(tree_sample, HTSampling);
             for (Size i = 0; i < query_.GetNumVertices(); ++i) {
                 Vertex cand = tree_sample[i];
                 if (seen[cand]) {
@@ -582,20 +670,24 @@ namespace daf {
                 if (!data_.CheckEdgeExist(tree_sample[i], tree_sample[j])) {
                     goto next_sample;
                 }
-
             }
+            ht_est += ht_prob;
             success++;
             next_sample:
             for (Size i = 0; i < query_.GetNumVertices(); ++i) {
                 seen[tree_sample[i]] = false;
             }
-            double rhohat = (success * 1.0 / t);
-            if (t >= 1000.0 / rhohat) break;
+            if (!HTSampling) {
+                double rhohat = (success * 1.0 / t);
+                if (t >= 1000.0 / rhohat) break;
+            }
         }
+//        fprintf(stderr, "Found HTEST %.15lf with %d samples\n",ht_est, t);
 //        fprintf(stderr,"TOTAL TREES %.04lf, SAMPLE %u/%u -> Estimate %.04lf\n",
 //                total_trees_, success, num_samples, total_trees_ * (success * 1.0 / t));
         delete[] seen;
         delete[] tree_sample;
-        return total_trees_ * (success * 1.0 / t);
+        if (HTSampling) return ht_est / t;
+        else return total_trees_ * (success * 1.0 / t);
     }
 }

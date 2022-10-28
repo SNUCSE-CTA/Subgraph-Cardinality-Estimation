@@ -10,37 +10,18 @@
 #include "include/data_graph.h"
 #include "include/query_graph.h"
 
-int main(int argc, char *argv[]) {
-    daf::Timer total_timer, sample_timer;
+const int UNIFORMRANDOM = 1;
+const int HORVITZTHOMPSON = 2;
 
-    std::string data_name = "../../dataset/yeast/data_graph/yeast.graph";
-    std::string query_name = "../../dataset/yeast/query_graph/query_dense_4_1.graph";
-    uint64_t limit = std::numeric_limits<uint64_t>::max();
-    int num_samples = 1000000;
-    for (int i = 1; i < argc; ++i) {
-        if (argv[i][0] == '-') {
-            switch (argv[i][1]) {
-                case 'd':
-                    data_name = argv[i + 1];
-                    break;
-                case 'q':
-                    query_name = argv[i + 1];
-                    break;
-                case 'm':
-                    limit = std::atoi(argv[i + 1]);
-                case 's':
-                    num_samples = std::atoi(argv[i + 1]);
-            }
-        }
-    }
+Timer total_timer, sample_timer;
 
-    std::cout << "Loading data graph...\n";
-    daf::DataGraph data(data_name);
-    data.LoadAndProcessGraph();
+std::string data_name = "../../dataset/yeast/data_graph/yeast.graph";
+std::string query_name = "../../dataset/yeast/query_graph/query_sparse_24_135.graph";
+uint32_t estimator = UNIFORMRANDOM;
+uint64_t limit = std::numeric_limits<uint64_t>::max();
+int num_samples = 1000000;
 
-    std::cout << "Loading query graph...\n";
-    daf::QueryGraph query(query_name);
-
+void run_treesample (DataGraph &data, QueryGraph &query) {
     total_timer.Start();
     query.LoadAndProcessGraph(data);
     total_timer.Stop();
@@ -60,11 +41,11 @@ int main(int argc, char *argv[]) {
     for (auto u = 0; u < query.GetNumVertices(); ++u) {
         if (cs.GetCandidateSetSize(u) == 0) {
             std::cout << "Total time: " << total_timer.GetTime() << " ms\n";
-            return 1;
+            exit(1);
         }
     }
     sample_timer.Start();
-    double est = cs.EstimateEmbeddings(num_samples);
+    double est = cs.EstimateEmbeddings(num_samples, (estimator == HORVITZTHOMPSON));
     sample_timer.Stop();
 
     total_timer.Add(sample_timer);
@@ -73,4 +54,41 @@ int main(int argc, char *argv[]) {
     std::cout << "Search time: " << sample_timer.GetTime() << " ms\n";
     std::cout << "#Matches(Approx) : " << std::fixed << std::setprecision(6) << est << std::endl;
     std::cout << "#Tree : " << std::fixed << std::setprecision(6) << cs.total_trees_ << std::endl;
+}
+
+
+int get_estimator(char *est_name) {
+    if (strcmp(est_name, "uniform-random") == 0) return UNIFORMRANDOM;
+    if (strcmp(est_name, "horvitz-thompson") == 0) return HORVITZTHOMPSON;
+    return UNIFORMRANDOM;
+}
+int main(int argc, char *argv[]) {
+    for (int i = 1; i < argc; ++i) {
+        if (argv[i][0] == '-') {
+            switch (argv[i][1]) {
+                case 'd':
+                    data_name = argv[i + 1];
+                    break;
+                case 'q':
+                    query_name = argv[i + 1];
+                    break;
+                case 'm':
+                    limit = std::atoi(argv[i + 1]);
+                case 's':
+                    num_samples = std::atoi(argv[i + 1]);
+                case 't':
+                    estimator = get_estimator(argv[i + 1]);
+                    break;
+
+            }
+        }
+    }
+
+    std::cout << "Loading data graph...\n";
+    DataGraph data(data_name);
+    data.LoadAndProcessGraph();
+
+    std::cout << "Loading query graph...\n";
+    QueryGraph query(query_name);
+    run_treesample(data, query);
 }

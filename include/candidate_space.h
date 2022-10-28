@@ -36,7 +36,7 @@ namespace daf {
 
         inline Size GetCandidateIndex(Size idx) const;
 
-        double EstimateEmbeddings(Size num_samples);
+        double EstimateEmbeddings(Size num_samples, bool HTSampling=false);
         double total_trees_ = 0;
 
 
@@ -50,6 +50,8 @@ namespace daf {
         double **num_trees_;
         double ****candidate_weights_;
         std::vector<std::vector<std::vector<std::discrete_distribution<int>>>> sample_dist;
+        std::vector<std::vector<std::vector<std::vector<Vertex>>>> sample_candidates;
+        std::vector<Vertex> root_candidates_;
         std::discrete_distribution<int> root_weights_;
 
         Size ***candidate_offsets_;
@@ -76,7 +78,7 @@ namespace daf {
                                    uint64_t *label_set);
         void ConstructTreeDP();
 
-        void SampleCSTree(Vertex *sample);
+        double SampleCSTree(Vertex *sample, bool HTSampling=false);
 
         void BuildQueryTree();
     };
