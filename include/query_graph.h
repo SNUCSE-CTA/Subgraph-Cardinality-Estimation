@@ -46,6 +46,12 @@ public:
 
     inline Label GetMaxLabel() const;
 
+    std::vector<std::vector<Vertex>> verticesbyLabel;
+
+    std::vector<Vertex> GetVerticesByLabel(Size l) const {
+        return verticesbyLabel[l];
+    }
+
 private:
     void ExtractResidualStructure();
 

@@ -36,4 +36,42 @@ struct UnionFind {
     }
 };
 
+struct BipartiteMaximumMatching {
+    std::vector<Vertex> left, right;
+    std::vector<bool> used;
+    std::vector<std::vector<Vertex>> adj;
+    BipartiteMaximumMatching(Size l = 0, Size r = 0){
+        left.resize(l, -1);
+        right.resize(r, -1);
+        adj.resize(l);
+    }
+    void add_edge(size_t u, size_t v) {
+        adj[u].push_back(v);
+    }
+    // Time: O( V(V+E) )
+    size_t solve() {
+        std::fill(left.begin(), left.end(), -1);
+        size_t ans = 0;
+        for (Vertex u = 0; u < left.size(); u++) {
+            if (left[u] == -1) {
+                std::fill(used.begin(), used.end(), false);
+                if (dfs(u)) ans++;
+            }
+        }
+        return ans;
+    }
+
+    bool dfs(Vertex r) {
+        used[r] = true;
+        for (Vertex c : adj[r]) {
+            Vertex k = right[c];
+            if (k == -1 or !used[k] and dfs(k)) {
+                left[r] = c;
+                right[c] = r;
+                return true;
+            }
+        }
+        return false;
+    }
+};
 #endif  // GLOBAL_GLOBAL_H_

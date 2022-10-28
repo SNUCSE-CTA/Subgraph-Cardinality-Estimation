@@ -20,6 +20,7 @@ bool QueryGraph::LoadAndProcessGraph(const DataGraph &data) {
     max_label_ = 0;
 
     label_frequency_ = new Size[data.GetNumLabels()];
+    verticesbyLabel.resize(data.GetNumLabels());
     start_off_ = new Size[GetNumVertices() + 1];
     linear_adj_list_ = new Vertex[GetNumEdges() * 2];
     core_num_ = new Size[GetNumVertices()];
@@ -33,6 +34,7 @@ bool QueryGraph::LoadAndProcessGraph(const DataGraph &data) {
         if (l == INVALID_LB) return false;
         if (label_frequency_[l] == 0) num_label_ += 1;
         label_[v] = l;
+        verticesbyLabel[l].push_back(v);
         max_label_ = std::max(max_label_, l);
         label_frequency_[l] += 1;
         if (adj_list[v].size() > max_degree_) max_degree_ = adj_list[v].size();

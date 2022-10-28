@@ -87,8 +87,12 @@ namespace daf {
             cand_size_ = 0;
             for (Vertex i = 0; i < query_.GetNumVertices(); ++i) {
                 cand_size_ += candidate_set_size_[i];
+                if (candidate_set_size_[i] == 0) {
+//                    fprintf(stderr, "candidate_set died\n");
+                    exit(0);
+                }
             }
-//            fprintf(stderr, "Iteration [%u] candidate_set_size = %u\n",stable_iter, cand_size_);
+            fprintf(stderr, "Iteration [%u] candidate_set_size = %u\n",stable_iter, cand_size_);
             if (!pruned) break;
         }
 
@@ -230,6 +234,7 @@ namespace daf {
                 }
             }
 
+            std::vector<Vertex> sameLabelQueryVertices = query_.verticesbyLabel[query_.GetLabel(cur)];
 
             for (Size i = 0; i < candidate_set_size_[cur]; ++i) {
                 Vertex cand = candidate_set_[cur][i];
@@ -248,7 +253,26 @@ namespace daf {
                         break;
                     }
                 }
-                if ((num_visit_cs_[cand] != num_child) || (is_neighbor_safe == false)) {
+                bool is_same_label_safe = true;
+                for (Vertex lv : sameLabelQueryVertices) {
+                    if (lv == cur) continue;
+                    bool found = false;
+                    for (Size lvcandidx = 0; lvcandidx < candidate_set_size_[lv]; ++lvcandidx) {
+                        if (candidate_set_[lv][lvcandidx] != cand) {
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found) {
+                        is_same_label_safe = false;
+                        break;
+                    }
+                }
+                if ((num_visit_cs_[cand] != num_child) || (is_neighbor_safe == false) || (is_same_label_safe == false)) {
+                    if (is_same_label_safe == false) {
+                        fprintf(stderr, "Label %u, cand %u for vertex %u is label-unsafe\n",
+                                query_.GetLabel(cur), cand, cur);
+                    }
                     candidate_set_[cur][i] =
                             candidate_set_[cur][candidate_set_size_[cur] - 1];
                     candidate_set_size_[cur] -= 1;
@@ -330,6 +354,7 @@ namespace daf {
                 }
             }
 
+            std::vector<Vertex> sameLabelQueryVertices = query_.verticesbyLabel[query_.GetLabel(cur)];
             for (Size i = 0; i < candidate_set_size_[cur]; ++i) {
                 Vertex cand = candidate_set_[cur][i];
 
@@ -348,7 +373,26 @@ namespace daf {
                         break;
                     }
                 }
-                if ((num_visit_cs_[cand] != num_parent) || (is_neighbor_safe == false)) {
+                bool is_same_label_safe = true;
+                for (Vertex lv : sameLabelQueryVertices) {
+                    if (lv == cur) continue;
+                    bool found = false;
+                    for (Size lvcandidx = 0; lvcandidx < candidate_set_size_[lv]; ++lvcandidx) {
+                        if (candidate_set_[lv][lvcandidx] != cand) {
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found) {
+                        is_same_label_safe = false;
+                        break;
+                    }
+                }
+                if ((num_visit_cs_[cand] != num_parent) || (is_neighbor_safe == false) || (is_same_label_safe == false)) {
+                    if (is_same_label_safe == false) {
+                        fprintf(stderr, "Label %u, cand %u for vertex %u is label-unsafe\n",
+                                query_.GetLabel(cur), cand, cur);
+                    }
                     candidate_set_[cur][i] =
                             candidate_set_[cur][candidate_set_size_[cur] - 1];
                     candidate_set_size_[cur] -= 1;
