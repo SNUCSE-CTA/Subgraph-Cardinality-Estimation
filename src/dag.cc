@@ -14,6 +14,7 @@ namespace daf {
         tree_parent_.resize(qV);
         tree_neighbors_.resize(qV);
         init_cand_size_.resize(qV);
+        kth_child_.resize(qV);
         std::fill(tree_parent_.begin(), tree_parent_.end(), -1);
     }
 
@@ -35,21 +36,11 @@ namespace daf {
                 if (!visit[c]) {
                     q.push(c);
                     visit[c] = true;
+                    kth_child_[c] = tree_children_[v].size();
+                    tree_children_[v].push_back(c);
+                    tree_parent_[c] = v;
                     v_id[c] = id;
                     tree_sequence_[id++] = c;
-                }
-            }
-        }
-        for (Size i = 0; i < query_.GetNumVertices(); i++) {
-            for (Vertex c : tree_neighbors_[i]) {
-                if (c > i) continue;
-                if (v_id[i] < v_id[c]) {
-                    tree_children_[i].push_back(c);
-                    tree_parent_[c] = i;
-                }
-                else {
-                    tree_children_[c].push_back(i);
-                    tree_parent_[i] = c;
                 }
             }
         }

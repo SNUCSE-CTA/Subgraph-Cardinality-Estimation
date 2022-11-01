@@ -10,10 +10,21 @@ using Size = uint32_t;
 using Vertex = uint32_t;
 using Label = uint32_t;
 using QueryDegree = uint8_t;
+using VertexPair = std::pair<Vertex, Vertex>;
 
 constexpr Size INVALID_SZ = std::numeric_limits<Size>::max();
 constexpr Vertex INVALID_VTX = std::numeric_limits<Vertex>::max();
 constexpr Label INVALID_LB = std::numeric_limits<Label>::max();
+
+namespace std {
+    template <>
+    struct hash<VertexPair> {
+        auto operator()(const VertexPair &x) const -> size_t {
+            return (((size_t)x.first)<<32) + x.second;
+        }
+    };
+}  // namespace std
+
 struct UnionFind {
     std::vector<uint32_t> par, sz;
     UnionFind(uint32_t n = 0){
@@ -44,6 +55,13 @@ struct BipartiteMaximumMatching {
         left.resize(l, -1);
         right.resize(r, -1);
         adj.resize(l);
+        used.resize(l);
+    }
+    void clear_adj() {
+        adj.clear();
+        std::fill(left.begin(), left.end(), -1);
+        std::fill(right.begin(), right.end(), -1);
+        adj.resize(left.size());
     }
     void add_edge(size_t u, size_t v) {
         adj[u].push_back(v);

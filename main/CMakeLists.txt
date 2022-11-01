@@ -7,3 +7,4 @@ add_compile_options(-std=c++20)
 # add_link_options(-fsanitize=address)
 
 add_executable(SubgraphSampler main.cc ${SOURCES})
+add_executable(WanderJoin wanderjoin.cc ${SOURCES})

@@ -2,6 +2,7 @@
 #include <map>
 #include <random>
 #include "include/candidate_space.h"
+//#define BIPARTITE_SAFETY
 
 namespace daf {
     CandidateSpace::CandidateSpace(const DataGraph &data, const QueryGraph &query,
@@ -9,13 +10,11 @@ namespace daf {
             : data_(data), query_(query), dag_(dag) {
         candidate_set_size_ = new Size[query_.GetNumVertices()];
         candidate_set_ = new Vertex *[query_.GetNumVertices()];
-        num_trees_ = new double *[query_.GetNumVertices()];
         candidate_offsets_ = new Size **[query_.GetNumVertices()];
 
         for (Vertex u = 0; u < query_.GetNumVertices(); ++u) {
             if (query_.IsInNEC(u) && !query_.IsNECRepresentation(u)) {
                 candidate_set_[u] = nullptr;
-                num_trees_[u] = nullptr;
                 candidate_offsets_[u] = nullptr;
             }
             else {
@@ -62,21 +61,32 @@ namespace daf {
         delete[] candidate_offsets_;
 
         if (linear_cs_adj_list_ != nullptr) delete[] linear_cs_adj_list_;
-        delete[] candidate_weights_;
         delete[] num_visit_cs_;
         delete[] visited_candidates_;
         delete[] cand_to_cs_idx_;
     }
 
+
     bool CandidateSpace::BuildCS() {
+        auto CandidateSpaceSize = [this]() {
+            Size cand_size_ = 0;
+            for (Vertex i = 0; i < query_.GetNumVertices(); ++i) {
+                cand_size_ += candidate_set_size_[i];
+            }
+            return cand_size_;
+        };
+        auto CandidateEdges = [this]() {
+            Size num_edges_ = 0;
+            for (auto &it : cs_edge_list_) {
+                num_edges_ += it.second.size();
+            }
+            return num_edges_;
+        };
         srand(0);
         dag_.BuildDAG(-1);
         if (!FilterByTopDownWithInit()) return false;
-        Size cand_size_ = 0;
-        for (Vertex i = 0; i < query_.GetNumVertices(); ++i) {
-            cand_size_ += candidate_set_size_[i];
-        }
-//        fprintf(stderr, "candidate_set_size = %u\n", cand_size_);
+
+//        fprintf(stderr, "candidate_set_size = %u\n", CandidateSpaceSize());
 
         Size stable_iter = 0;
         while (true) {
@@ -84,33 +94,14 @@ namespace daf {
             bool pruned = false;
             if (FilterByBottomUp()) pruned = true;
             if (FilterByTopDown()) pruned = true;
-            cand_size_ = 0;
-            for (Vertex i = 0; i < query_.GetNumVertices(); ++i) {
-                cand_size_ += candidate_set_size_[i];
-                if (candidate_set_size_[i] == 0) {
-//                    fprintf(stderr, "candidate_set died\n");
-                    exit(0);
-                }
-            }
-            fprintf(stderr, "Iteration [%u] candidate_set_size = %u\n",stable_iter, cand_size_);
+//            fprintf(stderr, "Iteration [%u] candidate_set_size = %u\n",stable_iter, CandidateSpaceSize());
             if (!pruned) break;
         }
-
-        cand_size_ = 0;
-        for (Vertex i = 0; i < query_.GetNumVertices(); ++i) {
-            cand_size_ += candidate_set_size_[i];
-        }
-
-        cand_size_ = 0;
-        for (Vertex i = 0; i < query_.GetNumVertices(); ++i) {
-            cand_size_ += candidate_set_size_[i];
-        }
-//        fprintf(stderr, "candidate_set_size = %u\n", cand_size_);
-
         ConstructCS();
-        BuildQueryTree();
-        ConstructTreeDP();
+        fprintf(stdout, "#CandidateSetSize : %u\n", CandidateSpaceSize());
+        fprintf(stdout, "#CandidateSetEdges : %u\n", CandidateEdges());
 
+        fprintf(stderr, "candidate_set_size = %u, Edge %u\n", CandidateSpaceSize(),CandidateEdges());
         return true;
     }
 
@@ -184,6 +175,28 @@ namespace daf {
         return result;
     }
 
+//#define BIPARTITE_SAFETY
+    bool CandidateSpace::BipartiteSafety(Vertex cur, Vertex cand) {
+#ifdef BIPARTITE_SAFETY
+        BipartiteMaximumMatching BP(query_.GetNumVertices(), data_.GetNumVertices());
+        BP.clear_adj();
+        BP.add_edge(cur, cand);
+        for (Vertex ui = 0; ui < query_.GetNumVertices(); ++ui) {
+            if (ui == cur) continue;
+            bool is_nb = query_.CheckEdgeExist(ui, cur);
+            for (Size lvcandidx = 0; lvcandidx < candidate_set_size_[ui]; ++lvcandidx) {
+                Vertex lv_cand = candidate_set_[ui][lvcandidx];
+                if (lv_cand == cand) continue;
+                if (is_nb && !data_.CheckEdgeExist(lv_cand, cand)) continue;
+                BP.add_edge(ui, lv_cand);
+            }
+        }
+        return (BP.solve() == query_.GetNumVertices());
+#else
+        return true;
+#endif
+    }
+
     bool CandidateSpace::FilterByBottomUp() {
         bool result = true;
         bool pruned = false;
@@ -234,45 +247,30 @@ namespace daf {
                 }
             }
 
-            std::vector<Vertex> sameLabelQueryVertices = query_.verticesbyLabel[query_.GetLabel(cur)];
-
             for (Size i = 0; i < candidate_set_size_[cur]; ++i) {
                 Vertex cand = candidate_set_[cur][i];
-                memcpy(tmp_label_frequency, neighbor_label_frequency, sizeof(int) * data_.GetNumLabels());
-                // Check neighbor safety
-                bool is_neighbor_safe = true;
-                for (Size nidx = data_.GetStartOffset(cand); nidx < data_.GetEndOffset(cand); nidx++) {
-                    Vertex d_neighbor = data_.GetNeighbor(nidx);
-                    if (in_neighbor_cs[d_neighbor]) {
-                        tmp_label_frequency[data_.GetLabel(d_neighbor)]--;
+                bool valid = (num_visit_cs_[cand] == num_child);
+                if (valid) {
+                    memcpy(tmp_label_frequency, neighbor_label_frequency, sizeof(int) * data_.GetNumLabels());
+                    // Check neighbor safety
+                    for (Size nidx = data_.GetStartOffset(cand); nidx < data_.GetEndOffset(cand); nidx++) {
+                        Vertex d_neighbor = data_.GetNeighbor(nidx);
+                        if (in_neighbor_cs[d_neighbor]) {
+                            tmp_label_frequency[data_.GetLabel(d_neighbor)]--;
+                        }
                     }
-                }
-                for (int l = 0; l < data_.GetNumLabels(); ++l) {
-                    if (tmp_label_frequency[l] > 0) {
-                        is_neighbor_safe = false;
-                        break;
-                    }
-                }
-                bool is_same_label_safe = true;
-                for (Vertex lv : sameLabelQueryVertices) {
-                    if (lv == cur) continue;
-                    bool found = false;
-                    for (Size lvcandidx = 0; lvcandidx < candidate_set_size_[lv]; ++lvcandidx) {
-                        if (candidate_set_[lv][lvcandidx] != cand) {
-                            found = true;
+                    for (int l = 0; l < data_.GetNumLabels(); ++l) {
+                        if (tmp_label_frequency[l] > 0) {
+                            valid = false;
                             break;
                         }
                     }
-                    if (!found) {
-                        is_same_label_safe = false;
-                        break;
-                    }
                 }
-                if ((num_visit_cs_[cand] != num_child) || (is_neighbor_safe == false) || (is_same_label_safe == false)) {
-                    if (is_same_label_safe == false) {
-                        fprintf(stderr, "Label %u, cand %u for vertex %u is label-unsafe\n",
-                                query_.GetLabel(cur), cand, cur);
-                    }
+                if (valid) {
+                    valid = BipartiteSafety(cur, cand);
+                }
+
+                if (!valid) {
                     candidate_set_[cur][i] =
                             candidate_set_[cur][candidate_set_size_[cur] - 1];
                     candidate_set_size_[cur] -= 1;
@@ -358,41 +356,25 @@ namespace daf {
             for (Size i = 0; i < candidate_set_size_[cur]; ++i) {
                 Vertex cand = candidate_set_[cur][i];
 
-                memcpy(tmp_label_frequency, neighbor_label_frequency, sizeof(int) * data_.GetNumLabels());
-                // Check neighbor safety
-                bool is_neighbor_safe = true;
-                for (Size nidx = data_.GetStartOffset(cand); nidx < data_.GetEndOffset(cand); nidx++) {
-                    Vertex d_neighbor = data_.GetNeighbor(nidx);
-                    if (in_neighbor_cs[d_neighbor]) {
-                        tmp_label_frequency[data_.GetLabel(d_neighbor)]--;
+                bool valid = (num_visit_cs_[cand] == num_parent);
+                if (valid) {
+                    memcpy(tmp_label_frequency, neighbor_label_frequency, sizeof(int) * data_.GetNumLabels());
+                    for (Size nidx = data_.GetStartOffset(cand); nidx < data_.GetEndOffset(cand); nidx++) {
+                        Vertex d_neighbor = data_.GetNeighbor(nidx);
+                        if (in_neighbor_cs[d_neighbor]) {
+                            tmp_label_frequency[data_.GetLabel(d_neighbor)]--;
+                        }
                     }
-                }
-                for (int l = 0; l < data_.GetNumLabels(); ++l) {
-                    if (tmp_label_frequency[l] > 0) {
-                        is_neighbor_safe = false;
-                        break;
-                    }
-                }
-                bool is_same_label_safe = true;
-                for (Vertex lv : sameLabelQueryVertices) {
-                    if (lv == cur) continue;
-                    bool found = false;
-                    for (Size lvcandidx = 0; lvcandidx < candidate_set_size_[lv]; ++lvcandidx) {
-                        if (candidate_set_[lv][lvcandidx] != cand) {
-                            found = true;
+                    for (int l = 0; l < data_.GetNumLabels(); ++l) {
+                        if (tmp_label_frequency[l] > 0) {
+                            valid = false;
                             break;
                         }
                     }
-                    if (!found) {
-                        is_same_label_safe = false;
-                        break;
-                    }
                 }
-                if ((num_visit_cs_[cand] != num_parent) || (is_neighbor_safe == false) || (is_same_label_safe == false)) {
-                    if (is_same_label_safe == false) {
-                        fprintf(stderr, "Label %u, cand %u for vertex %u is label-unsafe\n",
-                                query_.GetLabel(cur), cand, cur);
-                    }
+                if (valid) valid = BipartiteSafety(cur, cand);
+
+                if (!valid) {
                     candidate_set_[cur][i] =
                             candidate_set_[cur][candidate_set_size_[cur] - 1];
                     candidate_set_size_[cur] -= 1;
@@ -483,6 +465,12 @@ namespace daf {
 
                         Size v_idx = cand_to_cs_idx_[v];
                         if (v_idx != INVALID_SZ) {
+                            Vertex u_cand = GetCandidate(u, v_idx);
+                            Vertex uc_cand = GetCandidate(u_adj, v_adj_idx);
+                            VertexPair u_pair = {u, v_idx};
+                            VertexPair uc_pair = {u_adj, v_adj_idx};
+                            cs_edge_list_[u_pair].insert(uc_pair);
+                            cs_edge_list_[uc_pair].insert(u_pair);
                             linear_cs_adj_list_[candidate_offsets_[u][u_adj_idx][v_idx]] =
                                     v_adj_idx;
                             candidate_offsets_[u][u_adj_idx][v_idx] += 1;
@@ -549,189 +537,5 @@ namespace daf {
                 *max_nbr_degree = query_.GetDegree(adj);
             }
         }
-    }
-
-    void CandidateSpace::BuildQueryTree() {
-
-        std::vector<std::pair<double, std::pair<Vertex, Vertex>>> edges;
-        for (Size i = 0; i < query_.GetNumVertices(); ++i) {
-            for (Size nidx = query_.GetStartOffset(i); nidx < query_.GetEndOffset(i); ++nidx) {
-                Vertex q_neighbor = query_.GetNeighbor(nidx);
-                if (i > q_neighbor) continue;
-                Size ij_cs_edge = 0;
-                for (Size cs_idx = 0; cs_idx < candidate_set_size_[i]; ++cs_idx) {
-                    Size num_cs_neighbor =
-                            GetCandidateEndOffset(i, nidx-query_.GetStartOffset(i), cs_idx) -
-                            GetCandidateStartOffset(i, nidx-query_.GetStartOffset(i), cs_idx);
-                    ij_cs_edge += num_cs_neighbor;
-                }
-                ij_cs_edge /= ((1 + candidate_set_size_[i]) * (1 + candidate_set_size_[q_neighbor]));
-                edges.push_back({ij_cs_edge * 1.0,{i, q_neighbor}});
-            }
-        }
-        std::sort(edges.begin(), edges.end());
-        UnionFind uf(query_.GetNumVertices());
-        for (auto e : edges) {
-            auto [u, v] = e.second;
-            if (uf.unite(u, v)) {
-//                fprintf(stderr, "Tree %d-%d %.02lf\n",u,v,e.first);
-                dag_.AddTreeEdge(u, v);
-            }
-        }
-        dag_.BuildTree();
-    }
-
-
-    void CandidateSpace::ConstructTreeDP() {
-//        fprintf(stderr, "DAGROOT = %d\n",dag_.GetRoot());
-        double *num_tree_child = new double[data_.GetNumVertices()];
-        for (Size i = 0; i < query_.GetNumVertices(); ++i) {
-            Vertex u = dag_.GetVertexOrderedByTree(query_.GetNumVertices() - i - 1);
-            Label u_label = query_.GetLabel(u);
-            num_trees_[u] = new double[GetCandidateSetSize(u)];
-            std::fill(num_trees_[u], num_trees_[u] + GetCandidateSetSize(u), 1.0);
-            for (Size child_idx = 0; child_idx < dag_.GetNumTreeChildren(u); ++child_idx) {
-                std::fill(num_tree_child, num_tree_child + data_.GetNumVertices(), 0.0);
-                Vertex child = dag_.GetTreeChild(u, child_idx);
-//                fprintf(stderr, "Consider child %d of %d\n",child,u);
-                for (Size child_cand_idx = 0; child_cand_idx < candidate_set_size_[child]; ++child_cand_idx) {
-                    Vertex child_cand = candidate_set_[child][child_cand_idx];
-                    for (Size cc_nbr_idx = data_.GetStartOffset(child_cand, u_label);
-                         cc_nbr_idx < data_.GetEndOffset(child_cand, u_label); ++cc_nbr_idx) {
-                        Vertex cand = data_.GetNeighbor(cc_nbr_idx);
-                        num_tree_child[cand] += num_trees_[child][child_cand_idx];
-                    }
-                }
-                for (Size c_idx = 0; c_idx < GetCandidateSetSize(u); ++c_idx) {
-                    num_trees_[u][c_idx] *= num_tree_child[candidate_set_[u][c_idx]];
-//                    fprintf(stderr,"NUM_TREE[%d][%d] = %.02lf\n", u, c_idx, num_trees_[u][c_idx]);
-                }
-            }
-        }
-        sample_dist.resize(query_.GetNumVertices());
-        sample_candidates.resize(query_.GetNumVertices());
-        candidate_weights_ = new double***[query_.GetNumVertices()];
-        for (Size i = 0; i < query_.GetNumVertices(); ++i) {
-            Vertex u = dag_.GetVertexOrderedByTree(query_.GetNumVertices() - i - 1);
-            candidate_weights_[u] = new double**[dag_.GetNumTreeChildren(u)];
-            sample_dist[u].resize(dag_.GetNumTreeChildren(u));
-            sample_candidates[u].resize(dag_.GetNumTreeChildren(u));
-            for (Size ic = 0; ic < dag_.GetNumTreeChildren(u); ++ic) {
-                Vertex uc = dag_.GetTreeChild(u, ic);
-                candidate_weights_[u][ic] = new double*[GetCandidateSetSize(u)];
-                sample_dist[u][ic].resize(GetCandidateSetSize(u));
-                sample_candidates[u][ic].resize(GetCandidateSetSize(u));
-                for (Size iv = 0; iv < GetCandidateSetSize(u); ++iv) {
-                    Vertex v = GetCandidate(u, iv);
-                    candidate_weights_[u][ic][iv] = new double[GetCandidateSetSize(uc)];
-                    for (Size ivc = 0; ivc < GetCandidateSetSize(uc); ++ivc) {
-                        Vertex vc = GetCandidate(uc, ivc);
-                        candidate_weights_[u][ic][iv][ivc] = num_trees_[uc][ivc] * (data_.CheckEdgeExist(v, vc) ? 1 : 0);
-                        if (candidate_weights_[u][ic][iv][ivc] > 0) {
-                            sample_candidates[u][ic][iv].push_back(ivc);
-                        }
-                    }
-                    sample_dist[u][ic][iv] = std::discrete_distribution<int>(candidate_weights_[u][ic][iv], candidate_weights_[u][ic][iv] + GetCandidateSetSize(uc));
-                }
-            }
-        }
-        Vertex root = dag_.GetRoot();
-        std::vector <double> root_weight(GetCandidateSetSize(root), 0.0);
-        for (int root_candidate_idx = 0; root_candidate_idx < GetCandidateSetSize(root); ++root_candidate_idx) {
-            root_weight[root_candidate_idx] = num_trees_[root][root_candidate_idx];
-            if (num_trees_[root][root_candidate_idx] > 0) {
-                root_candidates_.push_back(root_candidate_idx);
-            }
-        }
-        root_weights_ = std::discrete_distribution<int>(root_weight.begin(), root_weight.end());
-        total_trees_ = 0.0;
-        for (Size i = 0; i < GetCandidateSetSize(root); ++i) {
-            total_trees_ += num_trees_[root][i];
-        }
-        delete[] num_tree_child;
-    }
-
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    inline Size sample(std::discrete_distribution<int> &weighted_distr) {
-        return weighted_distr(gen);
-    }
-    inline Size sample_no_weight(std::vector<Vertex> &candidate_indices) {
-        return candidate_indices[rand() % candidate_indices.size()];
-    }
-
-    double CandidateSpace::SampleCSTree(Vertex *tree_sample, bool HTSampling) {
-        memset(tree_sample, -1, sizeof(Vertex) * query_.GetNumVertices());
-        if (!HTSampling) {
-            tree_sample[dag_.GetRoot()] = sample(root_weights_);
-            for (Size i = 0; i < query_.GetNumVertices(); ++i) {
-                Vertex u = dag_.GetVertexOrderedByTree(i);
-                for (Size ic = 0; ic < dag_.GetNumTreeChildren(u); ++ic) {
-                    Vertex uc = dag_.GetTreeChild(u, ic);
-                    tree_sample[uc] = sample(sample_dist[u][ic][tree_sample[u]]);
-                }
-            }
-            for (Size i = 0; i < query_.GetNumVertices(); ++i) {
-                tree_sample[i] = GetCandidate(i, tree_sample[i]);
-            }
-            return 1.0;
-        }
-        else {
-            double prob = 1.0;
-            tree_sample[dag_.GetRoot()] = sample_no_weight(root_candidates_);
-            prob *= (root_candidates_.size());
-            for (Size i = 0; i < query_.GetNumVertices(); ++i) {
-                Vertex u = dag_.GetVertexOrderedByTree(i);
-                for (Size ic = 0; ic < dag_.GetNumTreeChildren(u); ++ic) {
-                    Vertex uc = dag_.GetTreeChild(u, ic);
-                    tree_sample[uc] = sample_no_weight(sample_candidates[u][ic][tree_sample[u]]);
-                    prob *= sample_candidates[u][ic][tree_sample[u]].size();
-                }
-            }
-            for (Size i = 0; i < query_.GetNumVertices(); ++i) {
-                tree_sample[i] = GetCandidate(i, tree_sample[i]);
-            }
-            return (prob == 0 ? 0.0 : prob);
-        }
-    }
-
-    double CandidateSpace::EstimateEmbeddings(Size num_samples, bool HTSampling) {
-        bool *seen = new bool[data_.GetNumVertices()];
-        memset(seen, 0, sizeof(bool) * data_.GetNumVertices());
-        Vertex *tree_sample = new Vertex[query_.GetNumVertices()];
-        Size success = 0, t;
-        double ht_est = 0.0;
-        for (t = 1; t <= num_samples; ++t) {
-            double ht_prob = SampleCSTree(tree_sample, HTSampling);
-            for (Size i = 0; i < query_.GetNumVertices(); ++i) {
-                Vertex cand = tree_sample[i];
-                if (seen[cand]) {
-                    goto next_sample;
-                }
-                seen[cand] = true;
-            }
-            for (auto &[i, j] : query_.edge_exists) {
-                if (!data_.CheckEdgeExist(tree_sample[i], tree_sample[j])) {
-                    goto next_sample;
-                }
-            }
-            ht_est += ht_prob;
-            success++;
-            next_sample:
-            for (Size i = 0; i < query_.GetNumVertices(); ++i) {
-                seen[tree_sample[i]] = false;
-            }
-            if (!HTSampling) {
-                double rhohat = (success * 1.0 / t);
-                if (t >= 1000.0 / rhohat) break;
-            }
-        }
-//        fprintf(stderr, "Found HTEST %.15lf with %d samples\n",ht_est, t);
-//        fprintf(stderr,"TOTAL TREES %.04lf, SAMPLE %u/%u -> Estimate %.04lf\n",
-//                total_trees_, success, num_samples, total_trees_ * (success * 1.0 / t));
-        delete[] seen;
-        delete[] tree_sample;
-        if (HTSampling) return ht_est / t;
-        else return total_trees_ * (success * 1.0 / t);
     }
 }

@@ -51,10 +51,14 @@ namespace daf {
         }
         void BuildTree();
 
+        inline Size GetChildIndex(Vertex v) const {
+            return kth_child_[v];
+        }
+
     private:
         const DataGraph &data_;
         const QueryGraph &query_;
-        std::vector<Size> bfs_level_, init_cand_size_;
+        std::vector<Size> bfs_level_, init_cand_size_, kth_child_;
         std::vector<Vertex> tree_sequence_, bfs_sequence_, tree_parent_;
         std::vector<std::vector<Vertex>> children_, parents_, tree_children_, tree_neighbors_;
         Vertex SelectRootVertex();

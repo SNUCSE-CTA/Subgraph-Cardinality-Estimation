@@ -3,6 +3,7 @@
 #include <string>
 #include <iomanip>
 #include <vector>
+//#define BIPARTITE_SAFETY
 
 #include "global/timer.h"
 #include "include/candidate_space.h"
@@ -16,8 +17,8 @@ const int HORVITZTHOMPSON = 2;
 
 Timer total_timer, sample_timer;
 
-std::string data_name = "../../dataset/wordnet/data_graph/wordnet.graph";
-std::string query_name = "../../dataset/wordnet/query_graph/query_dense_4_1.graph";
+std::string data_name = "../../dataset/yeast/data_graph/yeast.graph";
+std::string query_name = "../../dataset/yeast/query_graph/query_dense_4_2.graph";
 uint32_t estimator = UNIFORMRANDOM;
 uint64_t limit = std::numeric_limits<uint64_t>::max();
 int num_samples = 1000000;
