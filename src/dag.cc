@@ -20,6 +20,7 @@ namespace daf {
 
     DAG::~DAG() = default;
     void DAG::BuildTree() {
+//        fprintf(stderr, "Build Tree\n");
         bool *visit = new bool[query_.GetNumVertices()];
         std::fill(visit, visit + query_.GetNumVertices(), false);
         std::vector<Size> v_id(query_.GetNumVertices());
@@ -32,7 +33,8 @@ namespace daf {
         while (!q.empty()) {
             Vertex v = q.front();
             q.pop();
-            for (Size c : tree_neighbors_[v]) {
+//            fprintf(stderr, "Discovered Tree %u\n",v);
+            for (Vertex c : tree_neighbors_[v]) {
                 if (!visit[c]) {
                     q.push(c);
                     visit[c] = true;
@@ -46,8 +48,8 @@ namespace daf {
         }
 //        for (Size i = 0; i < query_.GetNumVertices(); i++) {
 //            fprintf(stderr, "%d : ",i);
-//            for (Vertex cid = 0; cid < GetNumTreeChildren(i); cid++) {
-//                fprintf(stderr, "%d ", tree_children_[i][cid]);
+//            for (Vertex cid = 0; cid < tree_neighbors_[i].size(); cid++) {
+//                fprintf(stderr, "%d ", tree_neighbors_[i][cid]);
 //            }
 //            fprintf(stderr, "\n");
 //        }

@@ -36,8 +36,9 @@ namespace daf {
         inline Size GetCandidateEndOffset(Vertex u, Size u_adj_idx, Size v_idx) const;
 
         inline Size GetCandidateIndex(Size idx) const;
+//        gp_hash_table<VertexPair, gp_hash_table<VertexPair, null_type>> cs_edge_list_;
 
-        std::unordered_map<VertexPair, std::unordered_set<VertexPair>> cs_edge_list_;
+        std::unordered_map<VertexPair, std::set<VertexPair>> cs_edge_list_;
 
     private:
         const DataGraph &data_;

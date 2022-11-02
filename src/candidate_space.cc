@@ -101,7 +101,7 @@ namespace daf {
         fprintf(stdout, "#CandidateSetSize : %u\n", CandidateSpaceSize());
         fprintf(stdout, "#CandidateSetEdges : %u\n", CandidateEdges());
 
-        fprintf(stderr, "candidate_set_size = %u, Edge %u\n", CandidateSpaceSize(),CandidateEdges());
+        fprintf(stderr, "    Candidate_set_size = %u, Edge %u\n", CandidateSpaceSize(),CandidateEdges());
         return true;
     }
 
@@ -469,6 +469,7 @@ namespace daf {
                             Vertex uc_cand = GetCandidate(u_adj, v_adj_idx);
                             VertexPair u_pair = {u, v_idx};
                             VertexPair uc_pair = {u_adj, v_adj_idx};
+//                            fprintf(stderr, "ADDEDGE (%u, %u) <-> (%u, %u)\n",u_pair.first,u_pair.second,uc_pair.first,uc_pair.second);
                             cs_edge_list_[u_pair].insert(uc_pair);
                             cs_edge_list_[uc_pair].insert(u_pair);
                             linear_cs_adj_list_[candidate_offsets_[u][u_adj_idx][v_idx]] =

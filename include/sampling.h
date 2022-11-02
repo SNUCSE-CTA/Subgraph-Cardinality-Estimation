@@ -34,7 +34,7 @@ public:
     std::vector<Vertex> root_candidates_;
     std::discrete_distribution<int> sample_root_dist_;
     void ConstructTreeDP();
-    double SampleCSTree(Vertex *sample, bool HTSampling=false);
+    double SampleCSTree(std::vector<Vertex> &sample, bool HTSampling=false);
     void BuildQueryTree();
 };
 

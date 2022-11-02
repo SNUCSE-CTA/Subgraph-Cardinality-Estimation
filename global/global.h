@@ -5,12 +5,18 @@
 #include <cstdint>
 #include <limits>
 #include <vector>
+#include <cstring>
 #include "global/log.h"
+
+#include <ext/pb_ds/assoc_container.hpp>
+using namespace __gnu_pbds;
+
 using Size = uint32_t;
 using Vertex = uint32_t;
 using Label = uint32_t;
 using QueryDegree = uint8_t;
 using VertexPair = std::pair<Vertex, Vertex>;
+
 
 constexpr Size INVALID_SZ = std::numeric_limits<Size>::max();
 constexpr Vertex INVALID_VTX = std::numeric_limits<Vertex>::max();
@@ -20,7 +26,7 @@ namespace std {
     template <>
     struct hash<VertexPair> {
         auto operator()(const VertexPair &x) const -> size_t {
-            return (((size_t)x.first)<<32) + x.second;
+            return x.first ^ x.second;
         }
     };
 }  // namespace std
