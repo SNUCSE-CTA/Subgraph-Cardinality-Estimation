@@ -4,8 +4,8 @@
 #include <algorithm>
 
 #include "global/global.h"
-#include "include/data_graph.h"
-#include "include/query_graph.h"
+#include "include/daf_data_graph.h"
+#include "include/daf_query_graph.h"
 
 namespace daf {
     class DAG {

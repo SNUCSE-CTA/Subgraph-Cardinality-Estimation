@@ -7,8 +7,10 @@
 #include <string>
 #include <vector>
 
-#include "include/data_graph.h"
-#include "include/graph.h"
+#include "include/daf_data_graph.h"
+#include "include/daf_graph.h"
+
+namespace daf {
 
 struct NECElement;
 
@@ -115,4 +117,5 @@ inline Size QueryGraph::GetNECRepresentative(Vertex v) const {
 }
 
 inline Label QueryGraph::GetMaxLabel() const { return max_label_; }
+}
 #endif  // QUERY_GRAPH_H_

@@ -1,5 +1,5 @@
-#include "include/query_graph.h"
-
+#include "include/daf_query_graph.h"
+using namespace daf;
 QueryGraph::QueryGraph(const std::string &filename) : Graph(filename) {}
 
 QueryGraph::~QueryGraph() {

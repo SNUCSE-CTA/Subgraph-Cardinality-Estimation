@@ -1,4 +1,4 @@
-#include "include/dag.h"
+#include "include/daf_dag.h"
 #include <queue>
 namespace daf {
     DAG::DAG(const DataGraph &data, const QueryGraph &query)

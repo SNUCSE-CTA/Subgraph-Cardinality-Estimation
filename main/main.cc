@@ -5,15 +5,13 @@
 #include <vector>
 
 #include "global/timer.h"
-#include "include/candidate_space.h"
-#include "include/dag.h"
-#include "include/data_graph.h"
-#include "include/query_graph.h"
-#include "include/sampling.h"
-
+#include "include/daf_candidate_space.h"
+#include "include/daf_dag.h"
+#include "include/daf_data_graph.h"
+#include "include/daf_query_graph.h"
+#include "include/treesampling.h"
+using namespace daf;
 const int UNIFORMRANDOM = 1;
-const int HORVITZTHOMPSON = 2;
-
 
 //std::string dataset, ans_file_name, data_root;
 std::string dataset = "eu2005", ans_file_name = "eu2005_ans", data_root = "../../dataset/";
@@ -49,7 +47,7 @@ void run_treesample (DataGraph &data, QueryGraph &query) {
         }
     }
     sample_timer.Start();
-    double est = treesampling.EstimateEmbeddings(num_samples, (estimator == HORVITZTHOMPSON));
+    double est = treesampling.EstimateEmbeddings(num_samples);
     sample_timer.Stop();
 
     total_timer.Add(sample_timer);
@@ -76,11 +74,6 @@ void loadFullDataset() {
         query_names.push_back(name);
     }
 }
-int get_estimator(char *est_name) {
-    if (strcmp(est_name, "uniform-random") == 0) return UNIFORMRANDOM;
-    if (strcmp(est_name, "horvitz-thompson") == 0) return HORVITZTHOMPSON;
-    return UNIFORMRANDOM;
-}
 int main(int argc, char *argv[]) {
     for (int i = 1; i < argc; ++i) {
         if (argv[i][0] == '-') {
@@ -103,7 +96,7 @@ int main(int argc, char *argv[]) {
                 case 's':
                     num_samples = std::atoi(argv[i + 1]);
                 case 't':
-                    estimator = get_estimator(argv[i + 1]);
+                    estimator = UNIFORMRANDOM;
                     break;
 
             }
@@ -121,7 +114,8 @@ int main(int argc, char *argv[]) {
     int q_cnt = 0;
     for (std::string &qname : query_names) {
         q_cnt++;
-        fprintf(stderr, "Processing query graph %d/%u : %s...\n",
+        fprintf(stderr, "%-10s\t%-10s\tQ%04d/%04lu:\t%s...\n",
+                "TreeSampling", dataset.c_str(),
                 q_cnt, query_names.size(), qname.c_str());
         query_name = qname;
         QueryGraph query(qname);

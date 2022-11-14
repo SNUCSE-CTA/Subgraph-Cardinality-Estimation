@@ -1,7 +1,7 @@
 #include <vector>
 #include <map>
 #include <random>
-#include "include/candidate_space.h"
+#include "include/daf_candidate_space.h"
 //#define BIPARTITE_SAFETY
 
 namespace daf {
@@ -101,7 +101,7 @@ namespace daf {
         fprintf(stdout, "#CandidateSetSize : %u\n", CandidateSpaceSize());
         fprintf(stdout, "#CandidateSetEdges : %u\n", CandidateEdges());
 
-        fprintf(stderr, "    Candidate_set_size = %u, Edge %u\n", CandidateSpaceSize(),CandidateEdges());
+//        fprintf(stderr, "    Candidate_set_size = %u, Edge %u\n", CandidateSpaceSize(),CandidateEdges());
         return true;
     }
 

@@ -1,4 +1,4 @@
-#include "include/sampling.h"
+#include "include/treesampling.h"
 namespace daf {
     TreeSampling::TreeSampling(const DataGraph &data, const QueryGraph &query,
                                DAG &dag)

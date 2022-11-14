@@ -10,8 +10,9 @@
 #include <vector>
 
 #include "global/global.h"
-#include "include/graph.h"
+#include "include/daf_graph.h"
 
+namespace daf {
 class DataGraph : public Graph {
 public:
     explicit DataGraph(const std::string &filename);
@@ -124,6 +125,7 @@ inline bool DataGraph::CheckAllNbrLabelExist(Vertex v,
         }
     }
     return true;
+}
 }
 
 #endif  // DATA_GRAPH_H_

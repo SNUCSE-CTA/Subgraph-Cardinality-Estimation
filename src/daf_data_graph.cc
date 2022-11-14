@@ -1,5 +1,5 @@
-#include "include/data_graph.h"
-
+#include "include/daf_data_graph.h"
+using namespace daf;
 DataGraph::DataGraph(const std::string &filename) : Graph(filename) {}
 
 DataGraph::~DataGraph() {

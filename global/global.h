@@ -8,9 +8,6 @@
 #include <cstring>
 #include "global/log.h"
 
-#include <ext/pb_ds/assoc_container.hpp>
-using namespace __gnu_pbds;
-
 using Size = uint32_t;
 using Vertex = uint32_t;
 using Label = uint32_t;

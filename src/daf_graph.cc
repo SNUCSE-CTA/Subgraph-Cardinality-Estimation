@@ -1,5 +1,5 @@
-#include "include/graph.h"
-
+#include "include/daf_graph.h"
+using namespace daf;
 Graph::Graph(const std::string &filename)
         : filename_(filename), fin_(filename) {}
 
