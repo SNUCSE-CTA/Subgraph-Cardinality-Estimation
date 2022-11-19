@@ -17,13 +17,13 @@ public:
     TreeSampling &operator=(const TreeSampling &) = delete;
     TreeSampling(const TreeSampling &) = delete;
 
-    double EstimateEmbeddings(Size num_samples, bool HTSampling=false);
+    double EstimateEmbeddings(Size num_samples);
     double total_trees_ = 0;
     CandidateSpace CS;
     const DataGraph &data_;
     const QueryGraph &query_;
     DAG &dag_;
-
+    std::vector<bool> seen_;
     std::vector<std::unordered_map<Vertex, double>> num_trees_;
     std::vector<std::vector<std::vector<std::vector<Vertex>>>> sample_candidates_;
     std::vector<std::vector<std::vector<std::vector<double>>>> sample_candidate_weights_;
@@ -34,8 +34,10 @@ public:
     std::vector<Vertex> root_candidates_;
     std::discrete_distribution<int> sample_root_dist_;
     void ConstructTreeDP();
-    double SampleCSTree(std::vector<Vertex> &sample, bool HTSampling=false);
+    double SampleCSTree(std::vector<int> &sample);
     void BuildQueryTree();
+
+    int CheckSample(std::vector<int> &sample);
 };
 
 

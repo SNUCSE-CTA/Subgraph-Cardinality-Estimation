@@ -54,6 +54,7 @@ public:
         return verticesbyLabel[l];
     }
 
+    bool ProcessLabeledGraph(const DataGraph &data);
 private:
     void ExtractResidualStructure();
 

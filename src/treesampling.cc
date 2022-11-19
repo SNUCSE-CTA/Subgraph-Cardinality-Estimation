@@ -1,15 +1,25 @@
 #include "include/treesampling.h"
 namespace daf {
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    inline Size sample(std::discrete_distribution<int> &weighted_distr) {
+        return weighted_distr(gen);
+    }
+    inline Size sample_no_weight(std::vector<Vertex> &candidate_indices) {
+        return candidate_indices[rand() % candidate_indices.size()];
+    }
+
     TreeSampling::TreeSampling(const DataGraph &data, const QueryGraph &query,
                                DAG &dag)
             : data_(data), query_(query), dag_(dag), CS(data, query, dag) {
         CS.BuildCS();
         BuildQueryTree();
         ConstructTreeDP();
+        seen_.resize(data_.GetNumVertices(), false);
     }
-    TreeSampling::~TreeSampling() {
 
-    }
+    TreeSampling::~TreeSampling() {}
+
     void TreeSampling::BuildQueryTree() {
 //        for (auto &e : CS.cs_edge_list_) {
 //            VertexPair u_pair = e.first;
@@ -123,16 +133,7 @@ namespace daf {
         sample_root_dist_ = std::discrete_distribution<int>(root_weight.begin(), root_weight.end());
     }
 
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    inline Size sample(std::discrete_distribution<int> &weighted_distr) {
-        return weighted_distr(gen);
-    }
-    inline Size sample_no_weight(std::vector<Vertex> &candidate_indices) {
-        return candidate_indices[rand() % candidate_indices.size()];
-    }
-
-    double TreeSampling::SampleCSTree(std::vector<Vertex> &tree_sample, bool HTSampling) {
+    double TreeSampling::SampleCSTree(std::vector<int> &tree_sample) {
         tree_sample[dag_.GetRoot()] = root_candidates_[sample(sample_root_dist_)];
 
 //        fprintf(stderr, "DAGRoot = %u, sampled %uth\n", dag_.GetRoot(), tree_sample[dag_.GetRoot()]);
@@ -157,47 +158,50 @@ namespace daf {
         return 1.0;
     }
 
-    double TreeSampling::EstimateEmbeddings(Size num_samples, bool HTSampling) {
-        bool *seen = new bool[data_.GetNumVertices()];
-        memset(seen, 0, sizeof(bool) * data_.GetNumVertices());
-        std::vector<Vertex> tree_sample(query_.GetNumVertices());
+    int TreeSampling::CheckSample(std::vector<int> &sample) {
+        int result = 1;
+        for (Size i = 0; i < query_.GetNumVertices(); ++i) {
+            if (sample[i] >= 0) {
+                Vertex cand = sample[i];
+                if (seen_[cand]) {
+                    result = 0;
+                    goto done;
+                }
+                seen_[cand] = true;
+            }
+            else result = -1;
+        }
+
+        for (auto &[i, j] : query_.edge_exists) {
+            if (sample[i] < 0 || sample[j] < 0) continue;
+            if (!data_.CheckEdgeExist(sample[i], sample[j])) {
+                result = 0;
+                goto done;
+            }
+        }
+        done:
+        for (Size i = 0; i < query_.GetNumVertices(); ++i) {
+            if (sample[i] >= 0)
+                seen_[sample[i]] = false;
+        }
+        return result;
+    }
+
+    double TreeSampling::EstimateEmbeddings(Size num_samples) {
+        std::vector<int> tree_sample(query_.GetNumVertices(), -1);
         Size success = 0, t = 0;
         double ht_est = 0.0;
         for (t = 1; t <= num_samples; ++t) {
             std::fill(tree_sample.begin(), tree_sample.end(), -1);
-            double ht_prob = SampleCSTree(tree_sample, HTSampling);
-            for (Size i = 0; i < query_.GetNumVertices(); ++i) {
-                Vertex cand = tree_sample[i];
-                if (seen[cand]) {
-                    goto next_sample;
-                }
-                seen[cand] = true;
+            double ht_prob = SampleCSTree(tree_sample);
+            if (CheckSample(tree_sample) == 1) {
+                ht_est += ht_prob;
+                success++;
             }
-            for (auto &[i, j] : query_.edge_exists) {
-                if (!data_.CheckEdgeExist(tree_sample[i], tree_sample[j])) {
-//                    fprintf(stderr, "Sample : ");
-//                    for (int ii = 0; ii < query_.GetNumVertices(); ++ii) {
-//                        fprintf(stderr, "%u(%u) ", ii,tree_sample[ii]);
-//                    }
-//                    fprintf(stderr, "\n");
-//                    exit(1);
-                    goto next_sample;
-                }
-            }
-            ht_est += ht_prob;
-            success++;
-            next_sample:
-            for (Size i = 0; i < query_.GetNumVertices(); ++i) {
-                seen[tree_sample[i]] = false;
-            }
-            if (!HTSampling) {
-                double rhohat = (success * 1.0 / t);
-                if (t >= 50000.0 / rhohat) break;
-            }
+            double rhohat = (success * 1.0 / t);
+            if (t >= 50000.0 / rhohat) break;
         }
-        delete[] seen;
-        if (HTSampling) return ht_est / t;
-        else return total_trees_ * (success * 1.0 / t);
+        return total_trees_ * (success * 1.0 / t);
     }
 
 }

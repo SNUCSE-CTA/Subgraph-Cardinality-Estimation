@@ -10,20 +10,7 @@ QueryGraph::~QueryGraph() {
     delete[] NEC_size_;
 }
 
-bool QueryGraph::LoadAndProcessGraph(const DataGraph &data) {
-    std::vector<std::vector<Vertex>> adj_list;
-
-    LoadRoughGraph(&adj_list);
-
-    max_degree_ = 0;
-    num_label_ = 0;
-    max_label_ = 0;
-
-    label_frequency_ = new Size[data.GetNumLabels()];
-    verticesbyLabel.resize(data.GetNumLabels());
-    start_off_ = new Size[GetNumVertices() + 1];
-    linear_adj_list_ = new Vertex[GetNumEdges() * 2];
-    core_num_ = new Size[GetNumVertices()];
+bool QueryGraph::ProcessLabeledGraph(const DataGraph &data) {
     std::fill(label_frequency_, label_frequency_ + data.GetNumLabels(), 0);
 
     Size cur_idx = 0;
@@ -61,8 +48,23 @@ bool QueryGraph::LoadAndProcessGraph(const DataGraph &data) {
     }
 
     ExtractResidualStructure();
-
     return true;
+
+}
+
+bool QueryGraph::LoadAndProcessGraph(const DataGraph &data) {
+    LoadRoughGraph(&adj_list);
+
+    max_degree_ = 0;
+    num_label_ = 0;
+    max_label_ = 0;
+
+    label_frequency_ = new Size[data.GetNumLabels()];
+    verticesbyLabel.resize(data.GetNumLabels());
+    start_off_ = new Size[GetNumVertices() + 1];
+    linear_adj_list_ = new Vertex[GetNumEdges() * 2];
+    core_num_ = new Size[GetNumVertices()];
+    return ProcessLabeledGraph(data);
 }
 
 namespace {

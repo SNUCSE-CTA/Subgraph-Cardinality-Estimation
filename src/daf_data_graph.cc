@@ -3,6 +3,7 @@ using namespace daf;
 DataGraph::DataGraph(const std::string &filename) : Graph(filename) {}
 
 DataGraph::~DataGraph() {
+    delete[] true_label_;
     delete[] transferred_label_;
     delete[] adj_offs_by_label_;
     delete[] offs_by_label_;
@@ -11,18 +12,10 @@ DataGraph::~DataGraph() {
     delete[] max_nbr_degree_;
 }
 
-void DataGraph::LoadAndProcessGraph() {
-    std::vector<std::vector<Vertex>> adj_list;
-    std::unordered_map<Label, Label> transferred_label_map;
-    Label max_label = 0;
-
-    LoadRoughGraph(&adj_list);
-
+void DataGraph::ProceesLabeledGraph() {
     // transfer label & get sorted degrees (for constructing C_ini(u))
+    Label max_label = 0;
     Label cur_transferred_label = 0;
-
-    vertices_sorted_ = new Vertex[GetNumVertices()];
-
     for (Vertex v = 0; v < GetNumVertices(); ++v) {
         vertices_sorted_[v] = v;
         Label l = label_[v];
@@ -35,7 +28,7 @@ void DataGraph::LoadAndProcessGraph() {
     }
 
     std::sort(vertices_sorted_, vertices_sorted_ + GetNumVertices(),
-              [this, &adj_list](Vertex v1, Vertex v2) -> bool {
+              [this](Vertex v1, Vertex v2) -> bool {
                   if (GetLabel(v1) != GetLabel(v2)) {
                       return GetLabel(v1) < GetLabel(v2);
                   }
@@ -104,7 +97,7 @@ void DataGraph::LoadAndProcessGraph() {
 
         // sort by label first and degree second
         std::sort(adj_list[v].begin(), adj_list[v].end(),
-                  [this, &adj_list](Vertex v1, Vertex v2) -> bool {
+                  [this](Vertex v1, Vertex v2) -> bool {
                       if (GetLabel(v1) != GetLabel(v2)) {
                           return GetLabel(v1) < GetLabel(v2);
                       }
@@ -149,3 +142,11 @@ void DataGraph::LoadAndProcessGraph() {
     // preprocess for data graph
     computeCoreNum();
 }
+
+void DataGraph::LoadAndProcessGraph() {
+    LoadRoughGraph(&adj_list);
+    true_label_ = new Label[GetNumVertices()];
+    vertices_sorted_ = new Vertex[GetNumVertices()];
+    ProceesLabeledGraph();
+}
+

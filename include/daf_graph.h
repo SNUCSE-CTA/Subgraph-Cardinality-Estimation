@@ -7,6 +7,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <unordered_map>
 
 #include "global/global.h"
 
@@ -48,6 +49,11 @@ namespace daf {
         std::set<std::pair<Vertex, Vertex>> edge_exists;
         Size num_label_;
     protected:
+        std::vector<std::vector<Vertex>> adj_list;
+        std::unordered_map<Label, Label> transferred_label_map;
+        Label *true_label_;
+        void relabel();
+
         void LoadRoughGraph(std::vector<std::vector<Vertex>> *graph);
 
         void computeCoreNum();

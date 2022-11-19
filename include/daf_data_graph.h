@@ -24,6 +24,7 @@ public:
     DataGraph(const DataGraph &) = delete;
 
     void LoadAndProcessGraph();
+    void ProceesLabeledGraph();
 
     using Graph::GetEndOffset;
     using Graph::GetStartOffset;
@@ -52,7 +53,6 @@ public:
 
     inline bool CheckAllNbrLabelExist(Vertex v, uint64_t *nbr_bitset) const;
 
-
 private:
     Label *transferred_label_;
     std::pair<Size, Size> *adj_offs_by_label_;
@@ -65,7 +65,6 @@ private:
 
     Size nbr_bitset_size_;
     Size max_label_frequency_;
-
 };
 
 inline Size DataGraph::GetStartOffset(Vertex v, Label l) const {
