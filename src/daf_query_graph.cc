@@ -64,6 +64,21 @@ bool QueryGraph::LoadAndProcessGraph(const DataGraph &data) {
     start_off_ = new Size[GetNumVertices() + 1];
     linear_adj_list_ = new Vertex[GetNumEdges() * 2];
     core_num_ = new Size[GetNumVertices()];
+
+    triangles.resize(GetNumVertices());
+    for (int i = 0; i < GetNumVertices(); i++) {
+        triangles[i].resize(GetNumVertices());
+    }
+    for (VertexPair vp : edge_exists) {
+        auto &va = adj_list[vp.first];
+        auto &vb = adj_list[vp.second];
+        std::set_intersection(va.begin(), va.end(), vb.begin(), vb.end(), std::back_inserter(triangles[vp.first][vp.second]));
+//        fprintf(stderr, "Edge[%u-%u]: ",vp.first,vp.second);
+//        for (auto x : trig) {
+//            fprintf(stderr, "%d ", x);
+//        }
+//        fprintf(stderr, "\n");
+    }
     return ProcessLabeledGraph(data);
 }
 

@@ -2,6 +2,7 @@
 #include <iostream>
 #include <string>
 #include <iomanip>
+#include <deque>
 #include <vector>
 
 #include "global/timer.h"
@@ -10,14 +11,15 @@
 #include "include/daf_data_graph.h"
 #include "include/daf_query_graph.h"
 #include "include/treesampling.h"
+
 using namespace daf;
 const int UNIFORMRANDOM = 1;
 
 //std::string dataset, ans_file_name, data_root;
-std::string dataset = "yeast", ans_file_name = "yeast_ans", data_root = "../../dataset/";
-std::string data_name = "../../dataset/yeast/data_graph/yeast.graph";
-std::string query_name = "../../dataset/yeast/query_graph/query_dense_8_1.graph";
-std::vector<std::string> query_names = {query_name};
+std::string dataset = "youtube", ans_file_name = dataset+"_ans", data_root = "../../dataset/";
+std::string data_name = "../../dataset/patents/data_graph/patents.graph";
+std::string query_name = "../../dataset/wordnet/query_graph/query_dense_8_1.graph";
+std::deque<std::string> query_names = {query_name};
 
 int num_samples = 1000000;
 
@@ -103,9 +105,14 @@ int main(int argc, char *argv[]) {
         loadFullDataset();
     }
 
-    std::cout << "Loading data graph...\n";
+    std::cout << "Loading data graph..." << std::endl;
     DataGraph data(data_name);
     data.LoadAndProcessGraph();
+    exit(0);
+
+    while (query_names.size() >= 30) {
+        query_names.pop_front();
+    }
 
     std::cout << "Loading query graph...\n";
     int q_cnt = 0;

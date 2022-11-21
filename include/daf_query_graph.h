@@ -6,6 +6,7 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <map>
 
 #include "include/daf_data_graph.h"
 #include "include/daf_graph.h"
@@ -49,6 +50,7 @@ public:
     inline Label GetMaxLabel() const;
 
     std::vector<std::vector<Vertex>> verticesbyLabel;
+    std::vector<std::vector<std::vector<Vertex>>> triangles;
 
     std::vector<Vertex> GetVerticesByLabel(Size l) const {
         return verticesbyLabel[l];

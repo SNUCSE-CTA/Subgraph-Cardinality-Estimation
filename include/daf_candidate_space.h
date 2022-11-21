@@ -14,6 +14,7 @@
 #include "include/daf_query_graph.h"
 
 namespace daf {
+
     class CandidateSpace {
     public:
         CandidateSpace(const DataGraph &data, const QueryGraph &query, DAG &dag);
@@ -57,6 +58,9 @@ namespace daf {
 
         Size num_cs_edges_;
 
+        std::vector<int> neighbor_label_frequency;
+        std::vector<int> in_neighbor_cs;
+
         bool FilterByTopDownWithInit();
 
         bool FilterByBottomUp();
@@ -71,6 +75,18 @@ namespace daf {
                                    uint64_t *label_set);
 
         bool BipartiteSafety(Vertex cur, Vertex cand);
+
+        bool Filter(bool topdown);
+
+        Vertex GetDAGNextVertex(Vertex cur, Size idx, bool topdown);
+
+        Size GetDAGNextCount(Vertex cur, bool topdown);
+
+        void PrepareNeighborSafety(Vertex cur);
+
+        bool CheckNeighborSafety(Vertex cur, Vertex cand);
+
+        bool EdgeSafety(Vertex cur, Vertex cand, Vertex nxt, Vertex nxt_cand);
     };
 
     inline Size CandidateSpace::GetCandidateSetSize(Vertex u) const {

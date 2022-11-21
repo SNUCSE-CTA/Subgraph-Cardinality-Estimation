@@ -1,4 +1,5 @@
 #include "include/daf_data_graph.h"
+#include <cmath>
 using namespace daf;
 DataGraph::DataGraph(const std::string &filename) : Graph(filename) {}
 
@@ -148,5 +149,17 @@ void DataGraph::LoadAndProcessGraph() {
     true_label_ = new Label[GetNumVertices()];
     vertices_sorted_ = new Vertex[GetNumVertices()];
     ProceesLabeledGraph();
+
+    // Compute Data Label Entropy
+    std::vector<double> label_probability;
+    for (Label i = 0; i < GetNumLabels(); i++) {
+        label_probability.push_back(GetLabelFrequency(i) * 1.0 / GetNumVertices());
+    }
+    double ent = 0.0;
+    for (auto x : label_probability) {
+//        fprintf(stderr, "%.04lf ",x);
+        ent -= x * log2(x);
+    }
+    fprintf(stderr, "\nLabel Entropy = %.02lf bits\n", ent);
 }
 

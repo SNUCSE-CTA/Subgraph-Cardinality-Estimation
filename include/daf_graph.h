@@ -46,7 +46,7 @@ namespace daf {
 
         inline bool CheckEdgeExist(Vertex u, Vertex v) const;
 
-        std::set<std::pair<Vertex, Vertex>> edge_exists;
+        std::set<VertexPair> edge_exists;
         Size num_label_;
     protected:
         std::vector<std::vector<Vertex>> adj_list;

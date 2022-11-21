@@ -3,6 +3,7 @@
 #include <random>
 #include "include/daf_candidate_space.h"
 //#define BIPARTITE_SAFETY
+#define NEIGHBOR_SAFETY
 
 namespace daf {
     CandidateSpace::CandidateSpace(const DataGraph &data, const QueryGraph &query,
@@ -68,20 +69,6 @@ namespace daf {
 
 
     bool CandidateSpace::BuildCS() {
-        auto CandidateSpaceSize = [this]() {
-            Size cand_size_ = 0;
-            for (Vertex i = 0; i < query_.GetNumVertices(); ++i) {
-                cand_size_ += candidate_set_size_[i];
-            }
-            return cand_size_;
-        };
-        auto CandidateEdges = [this]() {
-            Size num_edges_ = 0;
-            for (auto &it : cs_edge_list_) {
-                num_edges_ += it.second.size();
-            }
-            return num_edges_;
-        };
         srand(0);
         dag_.BuildDAG(-1);
         if (!FilterByTopDownWithInit()) return false;
@@ -92,18 +79,17 @@ namespace daf {
         while (true) {
             stable_iter++;
             bool pruned = false;
-            if (FilterByBottomUp()) pruned = true;
-            if (FilterByTopDown()) pruned = true;
+            if (Filter(false)) pruned = true;
+            if (Filter(true)) pruned = true;
 //            fprintf(stderr, "Iteration [%u] candidate_set_size = %u\n",stable_iter, CandidateSpaceSize());
             if (!pruned) break;
         }
         ConstructCS();
-        fprintf(stdout, "#CandidateSetSize : %u\n", CandidateSpaceSize());
-        fprintf(stdout, "#CandidateSetEdges : %u\n", CandidateEdges());
 
 //        fprintf(stderr, "    Candidate_set_size = %u, Edge %u\n", CandidateSpaceSize(),CandidateEdges());
         return true;
     }
+
 
     bool CandidateSpace::FilterByTopDownWithInit() {
         bool result = true;
@@ -175,7 +161,6 @@ namespace daf {
         return result;
     }
 
-//#define BIPARTITE_SAFETY
     bool CandidateSpace::BipartiteSafety(Vertex cur, Vertex cand) {
 #ifdef BIPARTITE_SAFETY
         BipartiteMaximumMatching BP(query_.GetNumVertices(), data_.GetNumVertices());
@@ -197,183 +182,97 @@ namespace daf {
 #endif
     }
 
-    bool CandidateSpace::FilterByBottomUp() {
-        bool result = true;
-        bool pruned = false;
-        int *neighbor_label_frequency = new int[data_.GetNumLabels()];
-        int *tmp_label_frequency = new int[data_.GetNumLabels()];
-        bool *in_neighbor_cs = new bool[data_.GetNumVertices()];
-        for (Size i = 0; i < query_.GetNumVertices(); ++i) {
-            Vertex cur = dag_.GetVertexOrderedByBFS(query_.GetNumVertices() - i - 1);
-
-            if (dag_.GetNumChildren(cur) == 0) continue;
-
-            Label cur_label = query_.GetLabel(cur);
-
-            QueryDegree num_child = 0;
-            for (Size i = 0; i < dag_.GetNumChildren(cur); ++i) {
-                Vertex child = dag_.GetChild(cur, i);
-
-                if (query_.IsInNEC(child) && !query_.IsNECRepresentation(child)) continue;
-
-                for (Size i = 0; i < candidate_set_size_[child]; ++i) {
-                    Vertex child_cand = candidate_set_[child][i];
-
-                    for (Size i = data_.GetStartOffset(child_cand, cur_label);
-                         i < data_.GetEndOffset(child_cand, cur_label); ++i) {
-                        Vertex cand = data_.GetNeighbor(i);
-                        if (data_.GetDegree(cand) < query_.GetDegree(cur)) break;
-
-                        if (num_visit_cs_[cand] == num_child) {
-                            num_visit_cs_[cand] += 1;
-                            if (num_child == 0) {
-                                visited_candidates_[num_visitied_candidates_] = cand;
-                                num_visitied_candidates_ += 1;
-                            }
-                        }
-                    }
-                }
-                num_child += 1;
-            }
-
-            memset(neighbor_label_frequency, 0, sizeof(Size) * data_.num_label_);
-            memset(in_neighbor_cs, 0, sizeof(bool) * data_.GetNumVertices());
-            for (Size nidx = query_.GetStartOffset(cur); nidx < query_.GetEndOffset(cur); ++nidx) {
-                Vertex q_neighbor = query_.GetNeighbor(nidx);
-                neighbor_label_frequency[query_.GetLabel(q_neighbor)]++;
-                for (Size ncsidx = 0; ncsidx < candidate_set_size_[q_neighbor]; ++ncsidx) {
-                    Vertex d_neighbor = candidate_set_[q_neighbor][ncsidx];
-                    in_neighbor_cs[d_neighbor] = true;
-                }
-            }
-
-            for (Size i = 0; i < candidate_set_size_[cur]; ++i) {
-                Vertex cand = candidate_set_[cur][i];
-                bool valid = (num_visit_cs_[cand] == num_child);
-                if (valid) {
-                    memcpy(tmp_label_frequency, neighbor_label_frequency, sizeof(int) * data_.GetNumLabels());
-                    // Check neighbor safety
-                    for (Size nidx = data_.GetStartOffset(cand); nidx < data_.GetEndOffset(cand); nidx++) {
-                        Vertex d_neighbor = data_.GetNeighbor(nidx);
-                        if (in_neighbor_cs[d_neighbor]) {
-                            tmp_label_frequency[data_.GetLabel(d_neighbor)]--;
-                        }
-                    }
-                    for (int l = 0; l < data_.GetNumLabels(); ++l) {
-                        if (tmp_label_frequency[l] > 0) {
-                            valid = false;
-                            break;
-                        }
-                    }
-                }
-                if (valid) {
-                    valid = BipartiteSafety(cur, cand);
-                }
-
-                if (!valid) {
-                    candidate_set_[cur][i] =
-                            candidate_set_[cur][candidate_set_size_[cur] - 1];
-                    candidate_set_size_[cur] -= 1;
-                    --i;
-                    pruned = true;
-                }
-                else {
-                    num_cs_edges_ += cand_to_cs_idx_[cand];
-                }
-            }
-
-            if (candidate_set_size_[cur] == 0) {
-                result = false;
-                break;
-            }
-
-            while (num_visitied_candidates_ > 0) {
-                num_visitied_candidates_ -= 1;
-                num_visit_cs_[visited_candidates_[num_visitied_candidates_]] = 0;
-            }
-        }
-        delete[] neighbor_label_frequency;
-        delete[] tmp_label_frequency;
-        delete[] in_neighbor_cs;
-
-        return pruned;
+    Size CandidateSpace::GetDAGNextCount(Vertex cur, bool topdown) {
+        return topdown? dag_.GetNumParents(cur) : dag_.GetNumChildren(cur);
+    }
+    Vertex CandidateSpace::GetDAGNextVertex(Vertex cur, Size idx, bool topdown) {
+        return topdown? dag_.GetParent(cur, idx) : dag_.GetChild(cur, idx);
     }
 
-    bool CandidateSpace::FilterByTopDown() {
+    void CandidateSpace::PrepareNeighborSafety(Vertex cur) {
+#ifdef NEIGHBOR_SAFETY
+        std::fill(neighbor_label_frequency.begin(), neighbor_label_frequency.end(), 0);
+        std::fill(in_neighbor_cs.begin(), in_neighbor_cs.end(), 0);
+        for (Size nidx = query_.GetStartOffset(cur); nidx < query_.GetEndOffset(cur); ++nidx) {
+            Vertex q_neighbor = query_.GetNeighbor(nidx);
+            neighbor_label_frequency[query_.GetLabel(q_neighbor)]++;
+            for (Size ncsidx = 0; ncsidx < candidate_set_size_[q_neighbor]; ++ncsidx) {
+                Vertex d_neighbor = candidate_set_[q_neighbor][ncsidx];
+                in_neighbor_cs[d_neighbor] = true;
+            }
+        }
+#endif
+    }
+
+    bool CandidateSpace::CheckNeighborSafety(Vertex cur, Vertex cand) {
+#ifdef NEIGHBOR_SAFETY
+        auto tmp_label_frequency = neighbor_label_frequency;
+        for (Size nidx = data_.GetStartOffset(cand); nidx < data_.GetEndOffset(cand); nidx++) {
+            Vertex d_neighbor = data_.GetNeighbor(nidx);
+            if (in_neighbor_cs[d_neighbor]) {
+                tmp_label_frequency[data_.GetLabel(d_neighbor)]--;
+            }
+        }
+        for (int l = 0; l < data_.GetNumLabels(); ++l) {
+            if (tmp_label_frequency[l] > 0) {
+                return false;
+            }
+        }
+#endif
+        return true;
+    }
+
+    bool CandidateSpace::EdgeSafety(Vertex cur, Vertex cand, Vertex nxt, Vertex nxt_cand) {
+        VertexPair qPair = {cur, nxt};
+        for (auto trig_vertex_ : query_.triangles[cur][nxt]) {
+
+        }
+        std::vector <Vertex> &triangle_ = query_.triangles[qPair];
+        return true;
+    }
+
+    bool CandidateSpace::Filter(bool topdown) {
         bool result = true;
         bool pruned = false;
-        int *neighbor_label_frequency = new int[data_.GetNumLabels()];
-        int *tmp_label_frequency = new int[data_.GetNumLabels()];
-        bool *in_neighbor_cs = new bool[data_.GetNumVertices()];
+        neighbor_label_frequency.resize(data_.GetNumLabels(), 0);
+        in_neighbor_cs.resize(data_.GetNumVertices(), false);
+        for (Size i = 0; i < query_.GetNumVertices(); ++i) {
+            Size query_idx = topdown ? i : query_.GetNumVertices() - i - 1;
+            Vertex cur = dag_.GetVertexOrderedByBFS(query_idx);
 
-        for (Size i = 1; i < query_.GetNumVertices(); ++i) {
-            Vertex cur = dag_.GetVertexOrderedByBFS(i);
+            if (GetDAGNextCount(cur, topdown) == 0) continue;
+
             Label cur_label = query_.GetLabel(cur);
-
-            // ComputeCounter()
-            QueryDegree num_parent = 0;
-            for (Size i = 0; i < dag_.GetNumParents(cur); ++i) {
-                Vertex parent = dag_.GetParent(cur, i);
-
-                for (Size i = 0; i < candidate_set_size_[parent]; ++i) {
-                    Vertex parent_cand = candidate_set_[parent][i];
-
-                    for (Size i = data_.GetStartOffset(parent_cand, cur_label);
-                         i < data_.GetEndOffset(parent_cand, cur_label); ++i) {
+            QueryDegree num_nxt = 0;
+            for (Size i = 0; i < GetDAGNextCount(cur, topdown); ++i) {
+                Vertex nxt = GetDAGNextVertex(cur, i, topdown);
+                for (Size i = 0; i < candidate_set_size_[nxt]; ++i) {
+                    Vertex nxt_cand = candidate_set_[nxt][i];
+                    for (Size i = data_.GetStartOffset(nxt_cand, cur_label);
+                         i < data_.GetEndOffset(nxt_cand, cur_label); ++i) {
                         Vertex cand = data_.GetNeighbor(i);
                         if (data_.GetDegree(cand) < query_.GetDegree(cur)) break;
-
-                        if (num_visit_cs_[cand] == num_parent) {
+                        if (EdgeSafety(cur, cand, nxt, nxt_cand) == false) continue;
+                        if (num_visit_cs_[cand] == num_nxt) {
                             num_visit_cs_[cand] += 1;
-                            if (num_parent == 0) {
+                            if (num_nxt == 0) {
                                 visited_candidates_[num_visitied_candidates_] = cand;
                                 num_visitied_candidates_ += 1;
-                                cand_to_cs_idx_[cand] = 0;
                             }
-                            cand_to_cs_idx_[cand] += 1;
-                        }
-                        else if (num_visit_cs_[cand] > num_parent) {
-                            cand_to_cs_idx_[cand] += 1;
                         }
                     }
                 }
-                num_parent += 1;
+                num_nxt += 1;
             }
 
+            PrepareNeighborSafety(cur);
 
-            memset(neighbor_label_frequency, 0, sizeof(Size) * data_.num_label_);
-            memset(in_neighbor_cs, 0, sizeof(bool) * data_.GetNumVertices());
-            for (Size nidx = query_.GetStartOffset(cur); nidx < query_.GetEndOffset(cur); ++nidx) {
-                Vertex q_neighbor = query_.GetNeighbor(nidx);
-                neighbor_label_frequency[query_.GetLabel(q_neighbor)]++;
-                for (Size ncsidx = 0; ncsidx < candidate_set_size_[q_neighbor]; ++ncsidx) {
-                    Vertex d_neighbor = candidate_set_[q_neighbor][ncsidx];
-                    in_neighbor_cs[d_neighbor] = true;
-                }
-            }
 
-            std::vector<Vertex> sameLabelQueryVertices = query_.verticesbyLabel[query_.GetLabel(cur)];
             for (Size i = 0; i < candidate_set_size_[cur]; ++i) {
                 Vertex cand = candidate_set_[cur][i];
-
-                bool valid = (num_visit_cs_[cand] == num_parent);
-                if (valid) {
-                    memcpy(tmp_label_frequency, neighbor_label_frequency, sizeof(int) * data_.GetNumLabels());
-                    for (Size nidx = data_.GetStartOffset(cand); nidx < data_.GetEndOffset(cand); nidx++) {
-                        Vertex d_neighbor = data_.GetNeighbor(nidx);
-                        if (in_neighbor_cs[d_neighbor]) {
-                            tmp_label_frequency[data_.GetLabel(d_neighbor)]--;
-                        }
-                    }
-                    for (int l = 0; l < data_.GetNumLabels(); ++l) {
-                        if (tmp_label_frequency[l] > 0) {
-                            valid = false;
-                            break;
-                        }
-                    }
-                }
+                bool valid = (num_visit_cs_[cand] == num_nxt);
+                if (valid) valid = CheckNeighborSafety(cur, cand);
                 if (valid) valid = BipartiteSafety(cur, cand);
-
                 if (!valid) {
                     candidate_set_[cur][i] =
                             candidate_set_[cur][candidate_set_size_[cur] - 1];
@@ -387,51 +286,33 @@ namespace daf {
             }
 
             if (candidate_set_size_[cur] == 0) {
-                result = false;
-                break;
+                exit(2);
             }
 
             while (num_visitied_candidates_ > 0) {
                 num_visitied_candidates_ -= 1;
                 num_visit_cs_[visited_candidates_[num_visitied_candidates_]] = 0;
-                cand_to_cs_idx_[visited_candidates_[num_visitied_candidates_]] = INVALID_SZ;
             }
         }
-        delete[] neighbor_label_frequency;
-        delete[] tmp_label_frequency;
-        delete[] in_neighbor_cs;
+
         return pruned;
     }
 
     void CandidateSpace::ConstructCS() {
-        linear_cs_adj_list_ = new Vertex[num_cs_edges_ * 2];
-
-        Size cur_cand_offset = 0;
-
+        std::map<Vertex, Size> CandidateSTDSet[query_.GetNumVertices()];
+        for (Size i = 0; i < query_.GetNumVertices(); ++i) {
+            for (Size idx = 0; idx < GetCandidateSetSize(i); idx++) {
+                CandidateSTDSet[i][candidate_set_[i][idx]] = idx;
+            }
+        }
         for (Size i = 0; i < query_.GetNumVertices(); ++i) {
             Vertex u = dag_.GetVertexOrderedByBFS(i);
-
-            if (query_.IsInNEC(u) && !query_.IsNECRepresentation(u)) continue;
-
             Label u_label = query_.GetLabel(u);
             Size u_degree = query_.GetDegree(u);
 
-            for (Size i = 0; i < candidate_set_size_[u]; ++i) {
-                cand_to_cs_idx_[candidate_set_[u][i]] = i;
-            }
-
             for (Size i = query_.GetStartOffset(u); i < query_.GetEndOffset(u); ++i) {
                 Vertex u_adj = query_.GetNeighbor(i);
-
-                if (query_.IsInNEC(u_adj) && !query_.IsNECRepresentation(u_adj)) continue;
-
                 Size u_adj_idx = i - query_.GetStartOffset(u);
-
-                candidate_offsets_[u][u_adj_idx] = new Size[GetCandidateSetSize(u) + 1];
-
-                std::fill(candidate_offsets_[u][u_adj_idx],
-                          candidate_offsets_[u][u_adj_idx] + GetCandidateSetSize(u) + 1,
-                          cur_cand_offset);
 
                 for (Size v_adj_idx = 0; v_adj_idx < candidate_set_size_[u_adj]; ++v_adj_idx) {
                     Vertex v_adj = candidate_set_[u_adj][v_adj_idx];
@@ -441,59 +322,30 @@ namespace daf {
                         Vertex v = data_.GetNeighbor(i);
 
                         if (data_.GetDegree(v) < u_degree) break;
-
-                        if (cand_to_cs_idx_[v] != INVALID_SZ) {
-                            candidate_offsets_[u][u_adj_idx][cand_to_cs_idx_[v] + 1] += 1;
-                        }
-                    }
-                }
-
-                for (Size i = 2; i < GetCandidateSetSize(u) + 1; ++i) {
-                    candidate_offsets_[u][u_adj_idx][i] +=
-                            candidate_offsets_[u][u_adj_idx][i - 1] - cur_cand_offset;
-                }
-
-                for (Size v_adj_idx = 0; v_adj_idx < candidate_set_size_[u_adj];
-                     ++v_adj_idx) {
-                    Vertex v_adj = candidate_set_[u_adj][v_adj_idx];
-
-                    for (Size i = data_.GetStartOffset(v_adj, u_label);
-                         i < data_.GetEndOffset(v_adj, u_label); ++i) {
-                        Vertex v = data_.GetNeighbor(i);
-
-                        if (data_.GetDegree(v) < u_degree) break;
-
-                        Size v_idx = cand_to_cs_idx_[v];
-                        if (v_idx != INVALID_SZ) {
-                            Vertex u_cand = GetCandidate(u, v_idx);
-                            Vertex uc_cand = GetCandidate(u_adj, v_adj_idx);
+                        if (CandidateSTDSet[u].find(v) != CandidateSTDSet[u].end()){
+                            Size v_idx = CandidateSTDSet[u][v];
                             VertexPair u_pair = {u, v_idx};
                             VertexPair uc_pair = {u_adj, v_adj_idx};
-//                            fprintf(stderr, "ADDEDGE (%u, %u) <-> (%u, %u)\n",u_pair.first,u_pair.second,uc_pair.first,uc_pair.second);
                             cs_edge_list_[u_pair].insert(uc_pair);
                             cs_edge_list_[uc_pair].insert(u_pair);
-                            linear_cs_adj_list_[candidate_offsets_[u][u_adj_idx][v_idx]] =
-                                    v_adj_idx;
-                            candidate_offsets_[u][u_adj_idx][v_idx] += 1;
                         }
                     }
                 }
-
-                for (Size i = GetCandidateSetSize(u) - 1; i--;) {
-                    candidate_offsets_[u][u_adj_idx][i + 1] =
-                            candidate_offsets_[u][u_adj_idx][i];
-                }
-
-                candidate_offsets_[u][u_adj_idx][0] = cur_cand_offset;
-
-                cur_cand_offset =
-                        candidate_offsets_[u][u_adj_idx][GetCandidateSetSize(u)];
-            }
-
-            for (Size i = 0; i < candidate_set_size_[u]; ++i) {
-                cand_to_cs_idx_[candidate_set_[u][i]] = INVALID_SZ;
             }
         }
+        Size CandidateSpaceSize = 0, CandidateEdges = 0;
+        for (Vertex i = 0; i < query_.GetNumVertices(); ++i) {
+            CandidateSpaceSize += CandidateSTDSet[i].size();
+        }
+        for (auto it : cs_edge_list_) {
+            CandidateEdges += it.second.size();
+        }
+        CandidateEdges /= 2;
+        fprintf(stdout, "#CandidateSetSize : %u\n", CandidateSpaceSize);
+        fprintf(stdout, "#CandidateSetEdges : %u\n", CandidateEdges);
+        double vert_cand_avg = (1.0*CandidateSpaceSize)/query_.GetNumVertices();
+        fprintf(stdout, "#AVG_VERT_CAND_SIZE : %.02lf\n", vert_cand_avg);
+        fprintf(stdout, "#AVG_EDGE_BTW_CANDS : %.02lf\n", (1.0*CandidateEdges)/query_.GetNumEdges()/vert_cand_avg);
     }
 
     bool CandidateSpace::InitRootCandidates() {
