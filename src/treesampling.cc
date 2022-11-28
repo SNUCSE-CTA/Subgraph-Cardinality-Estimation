@@ -9,7 +9,7 @@ namespace daf {
         return candidate_indices[rand() % candidate_indices.size()];
     }
 
-    TreeSampling::TreeSampling(const DataGraph &data, const QueryGraph &query,
+    TreeSampling::TreeSampling(DataGraph &data, QueryGraph &query,
                                DAG &dag)
             : data_(data), query_(query), dag_(dag), CS(data, query, dag) {
         CS.BuildCS();

@@ -4,16 +4,26 @@
 #include "include/daf_candidate_space.h"
 //#define BIPARTITE_SAFETY
 #define NEIGHBOR_SAFETY
+//#define FOURCYCLE_SAFETY
+#ifdef NEIGHBOR_SAFETY
+    #undef BIPARTITE_SAFETY
+#endif
+#ifdef BIPARTITE_SAFETY
+    #undef NEIGHBOR_SAFETY
+#endif
+
 
 namespace daf {
-    CandidateSpace::CandidateSpace(const DataGraph &data, const QueryGraph &query,
+    CandidateSpace::CandidateSpace(DataGraph &data, QueryGraph &query,
                                    DAG &dag)
             : data_(data), query_(query), dag_(dag) {
         candidate_set_size_ = new Size[query_.GetNumVertices()];
         candidate_set_ = new Vertex *[query_.GetNumVertices()];
         candidate_offsets_ = new Size **[query_.GetNumVertices()];
+        BitsetCS.resize(query_.GetNumVertices());
 
         for (Vertex u = 0; u < query_.GetNumVertices(); ++u) {
+            BitsetCS[u].resize(data_.GetNumVertices());
             if (query_.IsInNEC(u) && !query_.IsNECRepresentation(u)) {
                 candidate_set_[u] = nullptr;
                 candidate_offsets_[u] = nullptr;
@@ -72,21 +82,15 @@ namespace daf {
         srand(0);
         dag_.BuildDAG(-1);
         if (!FilterByTopDownWithInit()) return false;
-
-//        fprintf(stderr, "candidate_set_size = %u\n", CandidateSpaceSize());
-
         Size stable_iter = 0;
-        while (true) {
+        while (stable_iter < 3) {
             stable_iter++;
             bool pruned = false;
             if (Filter(false)) pruned = true;
             if (Filter(true)) pruned = true;
-//            fprintf(stderr, "Iteration [%u] candidate_set_size = %u\n",stable_iter, CandidateSpaceSize());
             if (!pruned) break;
         }
         ConstructCS();
-
-//        fprintf(stderr, "    Candidate_set_size = %u, Edge %u\n", CandidateSpaceSize(),CandidateEdges());
         return true;
     }
 
@@ -142,6 +146,7 @@ namespace daf {
                         data_.CheckAllNbrLabelExist(cand, nbr_label_bitset)) {
                         candidate_set_[cur][candidate_set_size_[cur]] = cand;
                         candidate_set_size_[cur] += 1;
+                        BitsetCS[cur].set(cand);
                     }
                 }
 
@@ -163,20 +168,18 @@ namespace daf {
 
     bool CandidateSpace::BipartiteSafety(Vertex cur, Vertex cand) {
 #ifdef BIPARTITE_SAFETY
-        BipartiteMaximumMatching BP(query_.GetNumVertices(), data_.GetNumVertices());
+        BipartiteMaximumMatching BP(query_.GetDegree(cur)+1, data_.GetDegree(cand)+1);
         BP.clear_adj();
-        BP.add_edge(cur, cand);
-        for (Vertex ui = 0; ui < query_.GetNumVertices(); ++ui) {
-            if (ui == cur) continue;
-            bool is_nb = query_.CheckEdgeExist(ui, cur);
-            for (Size lvcandidx = 0; lvcandidx < candidate_set_size_[ui]; ++lvcandidx) {
-                Vertex lv_cand = candidate_set_[ui][lvcandidx];
-                if (lv_cand == cand) continue;
-                if (is_nb && !data_.CheckEdgeExist(lv_cand, cand)) continue;
-                BP.add_edge(ui, lv_cand);
+        BP.add_edge(query_.GetDegree(cur), data_.GetDegree(cand));
+        for (int i = 0; i < query_.adj_list[cur].size(); i++) {
+            Vertex uc = query_.adj_list[cur][i];
+            for (int j = 0; j < data_.adj_list[cand].size(); j++) {
+                Vertex vc = data_.adj_list[cand][j];
+                if (BitsetCS[uc][vc])
+                    BP.add_edge(i, j);
             }
         }
-        return (BP.solve() == query_.GetNumVertices());
+        return (BP.solve() == (query_.GetDegree(cur)+1));
 #else
         return true;
 #endif
@@ -203,7 +206,6 @@ namespace daf {
         }
 #endif
     }
-
     bool CandidateSpace::CheckNeighborSafety(Vertex cur, Vertex cand) {
 #ifdef NEIGHBOR_SAFETY
         auto tmp_label_frequency = neighbor_label_frequency;
@@ -223,11 +225,73 @@ namespace daf {
     }
 
     bool CandidateSpace::EdgeSafety(Vertex cur, Vertex cand, Vertex nxt, Vertex nxt_cand) {
-        VertexPair qPair = {cur, nxt};
-        for (auto trig_vertex_ : query_.triangles[cur][nxt]) {
-
+        if (query_.GetEdgeLabel(cur, nxt) != data_.GetEdgeLabel(cand, nxt_cand)) return false;
+        std::vector<Vertex> datagraph_cand_intersection;
+        std::set_intersection(data_.adj_list[cand].begin(), data_.adj_list[cand].end(),
+                              data_.adj_list[nxt_cand].begin(), data_.adj_list[nxt_cand].end(),
+                              std::back_inserter(datagraph_cand_intersection));
+        if (query_.triangles[cur][nxt].size() > datagraph_cand_intersection.size()) {
+            return false;
         }
-        std::vector <Vertex> &triangle_ = query_.triangles[qPair];
+#ifdef BIPARTITE_SAFETY
+        BipartiteMaximumMatching BP(query_.triangles[cur][nxt].size(), datagraph_cand_intersection.size());
+        BP.clear_adj();
+        for (int i = 0; i < query_.triangles[cur][nxt].size(); i++) {
+            Vertex uu = query_.triangles[cur][nxt][i];
+            for (int j = 0; j < datagraph_cand_intersection.size(); j++) {
+                Vertex vv = datagraph_cand_intersection[j];
+                if (BitsetCS[uu][vv]) {
+                    BP.add_edge(i, j);
+                }
+            }
+        }
+        return (BP.solve() == query_.triangles[cur][nxt].size());
+#else
+        // triangle filter
+        for (auto trig_vertex_ : query_.triangles[cur][nxt]) {
+            bool found = false;
+            for (Vertex &tcand : datagraph_cand_intersection) {
+                if (BitsetCS[trig_vertex_][tcand]) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) return false;
+        }
+#endif
+#ifdef FOURCYCLE_SAFETY
+        // 4-cycle filter
+        VertexPair opp_edge = query_.four_cycles[cur][nxt];
+        if (opp_edge.first != opp_edge.second) {
+            Vertex third = opp_edge.first, fourth = opp_edge.second;
+            for (auto fourth_cand : data_.adj_list[cand]) {
+                if (BitsetCS[fourth][fourth_cand] and fourth_cand != nxt_cand)
+                    tmpBitset[fourth_cand] = true;
+            }
+            std::vector <Vertex> third_cands;
+            for (auto third_cand : data_.adj_list[nxt_cand]) {
+                if (BitsetCS[third][third_cand] and third_cand != cand) {
+                    third_cands.push_back(third_cand);
+                }
+            }
+            bool found_valid_cycle = false;
+            for (auto t : third_cands) {
+                for (auto ft : data_.adj_list[t]) {
+                    if (tmpBitset[ft]) {
+                        found_valid_cycle = true;
+                        goto checked;
+                    }
+                }
+            }
+            checked:
+            for (auto fourth_cand : data_.adj_list[cand]) {
+                tmpBitset[fourth_cand] = false;
+            }
+            if (!found_valid_cycle) {
+                return false;
+            }
+        }
+#endif
         return true;
     }
 
@@ -236,6 +300,7 @@ namespace daf {
         bool pruned = false;
         neighbor_label_frequency.resize(data_.GetNumLabels(), 0);
         in_neighbor_cs.resize(data_.GetNumVertices(), false);
+        tmpBitset.resize(data_.GetNumVertices(), false);
         for (Size i = 0; i < query_.GetNumVertices(); ++i) {
             Size query_idx = topdown ? i : query_.GetNumVertices() - i - 1;
             Vertex cur = dag_.GetVertexOrderedByBFS(query_idx);
@@ -252,7 +317,7 @@ namespace daf {
                          i < data_.GetEndOffset(nxt_cand, cur_label); ++i) {
                         Vertex cand = data_.GetNeighbor(i);
                         if (data_.GetDegree(cand) < query_.GetDegree(cur)) break;
-                        if (EdgeSafety(cur, cand, nxt, nxt_cand) == false) continue;
+                        if (!EdgeSafety(cur, cand, nxt, nxt_cand)) continue;
                         if (num_visit_cs_[cand] == num_nxt) {
                             num_visit_cs_[cand] += 1;
                             if (num_nxt == 0) {
@@ -278,6 +343,7 @@ namespace daf {
                             candidate_set_[cur][candidate_set_size_[cur] - 1];
                     candidate_set_size_[cur] -= 1;
                     --i;
+                    BitsetCS[cur].reset(cand);
                     pruned = true;
                 }
                 else {
@@ -286,6 +352,7 @@ namespace daf {
             }
 
             if (candidate_set_size_[cur] == 0) {
+                fprintf(stderr, "FOUND INVALID %u\n",cur);
                 exit(2);
             }
 
@@ -322,6 +389,7 @@ namespace daf {
                         Vertex v = data_.GetNeighbor(i);
 
                         if (data_.GetDegree(v) < u_degree) break;
+                        if (!EdgeSafety(u, v, u_adj, v_adj)) continue;
                         if (CandidateSTDSet[u].find(v) != CandidateSTDSet[u].end()){
                             Size v_idx = CandidateSTDSet[u][v];
                             VertexPair u_pair = {u, v_idx};
@@ -341,6 +409,24 @@ namespace daf {
             CandidateEdges += it.second.size();
         }
         CandidateEdges /= 2;
+        Size chk = 0;
+        for (auto &it : BitsetCS) {
+            chk += it.count();
+        }
+        int outcsDataVertex = 0;
+        for (int i = 0; i < data_.GetNumVertices(); i++) {
+            bool found = false;
+            for (int j = 0; j < query_.GetNumVertices(); j++) {
+                if (BitsetCS[j][i]) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                outcsDataVertex++;
+            }
+        }
+        fprintf(stdout, "#BitCSSize : %u\n", chk);
         fprintf(stdout, "#CandidateSetSize : %u\n", CandidateSpaceSize);
         fprintf(stdout, "#CandidateSetEdges : %u\n", CandidateEdges);
         double vert_cand_avg = (1.0*CandidateSpaceSize)/query_.GetNumVertices();
@@ -368,6 +454,7 @@ namespace daf {
                 data_.GetMaxNbrDegree(cand) >= max_nbr_degree) {
                 candidate_set_[root][candidate_set_size_[root]] = cand;
                 candidate_set_size_[root] += 1;
+                BitsetCS[root].set(cand);
             }
         }
 

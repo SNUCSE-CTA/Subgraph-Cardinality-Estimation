@@ -1,6 +1,7 @@
 #ifndef GRAPH_H_
 #define GRAPH_H_
 
+#include <map>
 #include <set>
 #include <fstream>
 #include <iostream>
@@ -45,11 +46,12 @@ namespace daf {
         inline Vertex GetNeighbor(Size i) const;
 
         inline bool CheckEdgeExist(Vertex u, Vertex v) const;
+        Label GetEdgeLabel(Vertex u, Vertex v);
 
-        std::set<VertexPair> edge_exists;
+        std::map<std::pair<Vertex, Vertex>, Label> edge_labels_;
+        std::set<std::pair<Vertex, Vertex>> edge_exists;
         Size num_label_;
     protected:
-        std::vector<std::vector<Vertex>> adj_list;
         std::unordered_map<Label, Label> transferred_label_map;
         Label *true_label_;
         void relabel();
@@ -72,6 +74,8 @@ namespace daf {
 
         const std::string &filename_;
         std::ifstream fin_;
+    public:
+        std::vector<std::vector<Vertex>> adj_list;
     };
 
     inline Size Graph::GetNumLabels() const { return num_label_; }
@@ -106,6 +110,9 @@ namespace daf {
                || (edge_exists.find(std::make_pair(v, u)) != edge_exists.end());
     }
 
+    inline Label Graph::GetEdgeLabel(Vertex u, Vertex v) {
+        return edge_labels_[{u, v}];
+    }
 }
 
 #endif  // GRAPH_H_

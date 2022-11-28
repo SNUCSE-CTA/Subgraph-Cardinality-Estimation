@@ -7,6 +7,7 @@
 #include <map>
 #include <unordered_map>
 #include <unordered_set>
+#include <boost/dynamic_bitset.hpp>
 
 #include "global/global.h"
 #include "include/daf_dag.h"
@@ -17,7 +18,7 @@ namespace daf {
 
     class CandidateSpace {
     public:
-        CandidateSpace(const DataGraph &data, const QueryGraph &query, DAG &dag);
+        CandidateSpace(DataGraph &data, QueryGraph &query, DAG &dag);
 
         ~CandidateSpace();
 
@@ -42,11 +43,13 @@ namespace daf {
         std::unordered_map<VertexPair, std::set<VertexPair>> cs_edge_list_;
 
     private:
-        const DataGraph &data_;
-        const QueryGraph &query_;
+        DataGraph &data_;
+        QueryGraph &query_;
         DAG &dag_;
         Size *candidate_set_size_;
         Vertex **candidate_set_;
+        std::vector<boost::dynamic_bitset<uint64_t>> BitsetCS;
+        boost::dynamic_bitset<uint64_t> tmpBitset;
 
         Size ***candidate_offsets_;
         Vertex *linear_cs_adj_list_;

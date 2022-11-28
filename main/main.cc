@@ -15,10 +15,10 @@
 using namespace daf;
 const int UNIFORMRANDOM = 1;
 
-//std::string dataset, ans_file_name, data_root;
-std::string dataset = "youtube", ans_file_name = dataset+"_ans", data_root = "../../dataset/";
-std::string data_name = "../../dataset/patents/data_graph/patents.graph";
-std::string query_name = "../../dataset/wordnet/query_graph/query_dense_8_1.graph";
+std::string dataset, ans_file_name, data_root;
+//std::string dataset = "wordnet", ans_file_name = dataset+"_ans", data_root = "../../dataset/";
+std::string data_name = "../../dataset/aids/data_graph/aids.graph";
+std::string query_name = "../../dataset/aids/query_graph/query_sparse_4_2.graph";
 std::deque<std::string> query_names = {query_name};
 
 int num_samples = 1000000;
@@ -108,11 +108,10 @@ int main(int argc, char *argv[]) {
     std::cout << "Loading data graph..." << std::endl;
     DataGraph data(data_name);
     data.LoadAndProcessGraph();
-    exit(0);
 
-    while (query_names.size() >= 30) {
-        query_names.pop_front();
-    }
+//    while (query_names.size() >= 100) {
+//        query_names.pop_front();
+//    }
 
     std::cout << "Loading query graph...\n";
     int q_cnt = 0;

@@ -150,6 +150,11 @@ void DataGraph::LoadAndProcessGraph() {
     vertices_sorted_ = new Vertex[GetNumVertices()];
     ProceesLabeledGraph();
 
+    // sort back
+    for (auto &it : adj_list) {
+        std::sort(it.begin(), it.end());
+    }
+
     // Compute Data Label Entropy
     std::vector<double> label_probability;
     for (Label i = 0; i < GetNumLabels(); i++) {
@@ -157,9 +162,20 @@ void DataGraph::LoadAndProcessGraph() {
     }
     double ent = 0.0;
     for (auto x : label_probability) {
-//        fprintf(stderr, "%.04lf ",x);
         ent -= x * log2(x);
     }
-    fprintf(stderr, "\nLabel Entropy = %.02lf bits\n", ent);
+    fprintf(stderr, "\nNode Label Entropy = %.02lf bits\n", ent);
+    std::map<Label, double> edge_label_probability;
+    for (auto &p : edge_labels_) {
+        edge_label_probability[p.second]+=1;
+    }
+    for (auto &p : edge_label_probability) {
+        p.second /= num_edge_;
+    }
+    ent = 0.0;
+    for (auto x : edge_label_probability) {
+        ent -= x.second * log2(x.second);
+    }
+    fprintf(stderr, "\nEdge Label Entropy = %.02lf bits\n", ent);
 }
 

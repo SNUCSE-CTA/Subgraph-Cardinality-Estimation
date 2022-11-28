@@ -12,7 +12,7 @@
 namespace daf {
 class TreeSampling {
 public:
-    TreeSampling(const DataGraph &data, const QueryGraph &query, DAG &dag);
+    TreeSampling(DataGraph &data, QueryGraph &query, DAG &dag);
     ~TreeSampling();
     TreeSampling &operator=(const TreeSampling &) = delete;
     TreeSampling(const TreeSampling &) = delete;
@@ -20,8 +20,8 @@ public:
     double EstimateEmbeddings(Size num_samples);
     double total_trees_ = 0;
     CandidateSpace CS;
-    const DataGraph &data_;
-    const QueryGraph &query_;
+    DataGraph &data_;
+    QueryGraph &query_;
     DAG &dag_;
     std::vector<bool> seen_;
     std::vector<std::unordered_map<Vertex, double>> num_trees_;

@@ -51,12 +51,14 @@ public:
 
     std::vector<std::vector<Vertex>> verticesbyLabel;
     std::vector<std::vector<std::vector<Vertex>>> triangles;
+    std::vector<std::vector<VertexPair>> four_cycles;
 
     std::vector<Vertex> GetVerticesByLabel(Size l) const {
         return verticesbyLabel[l];
     }
 
     bool ProcessLabeledGraph(const DataGraph &data);
+    std::string myname;
 private:
     void ExtractResidualStructure();
 

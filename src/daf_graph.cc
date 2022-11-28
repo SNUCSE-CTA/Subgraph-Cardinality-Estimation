@@ -1,5 +1,20 @@
 #include "include/daf_graph.h"
 using namespace daf;
+using std::vector, std::string, std::deque;
+deque<string> parse(string line, string del) {
+    deque<string> ret;
+
+    size_t pos = 0;
+    string token;
+    while((pos = line.find(del)) != string::npos)
+    {
+        token = line.substr(0, pos);
+        ret.push_back(token);
+        line.erase(0, pos + del.length());
+    }
+    ret.push_back(line);
+    return ret;
+}
 Graph::Graph(const std::string &filename)
         : filename_(filename), fin_(filename) {}
 
@@ -18,39 +33,52 @@ void Graph::LoadRoughGraph(std::vector<std::vector<Vertex>> *graph) {
     }
 
     Size v, e;
-    char type;
+    std::string type;
+    std::string ignore;
 
     fin_ >> type >> v >> e;
 
     num_vertex_ = v;
     num_edge_ = e;
     label_ = new Label[v];
-
     graph->resize(v);
 
+    std::string line;
     // preprocessing
-    while (fin_ >> type) {
-        if (type == 'v') {
-            Vertex id;
+    while (getline(fin_, line)) {
+        auto tok = parse(line, " ");
+        type = tok[0];
+        tok.pop_front();
+        if (type[0] == 'v') {
+            Vertex id = std::stoi(tok.front());
+            tok.pop_front();
             Label l;
-            Size d;
-            fin_ >> id >> l >> d;
-
+            if (tok.empty()) l = 0;
+            else {
+                l = std::stoi(tok.front());
+                tok.pop_front();
+            }
             label_[id] = l;
-        }
-        else if (type == 'e') {
+        } else if (type[0] == 'e') {
             Vertex v1, v2;
-            fin_ >> v1 >> v2;
+            v1 = std::stoi(tok.front()); tok.pop_front();
+            v2 = std::stoi(tok.front()); tok.pop_front();
             edge_exists.insert({v1, v2});
             edge_exists.insert({v2, v1});
-
             (*graph)[v1].push_back(v2);
             (*graph)[v2].push_back(v1);
+            Label el;
+            if (tok.empty()) el = 0;
+            else {
+                el = std::stoi(tok.front()); tok.pop_front();
+            }
+            edge_labels_[{v1, v2}] = edge_labels_[{v2, v1}] = el;
         }
     }
-
+    fprintf(stderr, "Graph Read finish : Read %u vertices and %u edges\n",num_vertex_,num_edge_);
     fin_.close();
 }
+
 
 void Graph::computeCoreNum() {
     Size *bin = new Size[max_degree_ + 1];
