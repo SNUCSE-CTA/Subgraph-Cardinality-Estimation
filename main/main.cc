@@ -18,7 +18,7 @@ const int UNIFORMRANDOM = 1;
 std::string dataset, ans_file_name, data_root;
 //std::string dataset = "wordnet", ans_file_name = dataset+"_ans", data_root = "../../dataset/";
 std::string data_name = "../../dataset/aids/data_graph/aids.graph";
-std::string query_name = "../../dataset/aids/query_graph/query_sparse_4_2.graph";
+std::string query_name = "../../dataset/aids/query_graph/query_sparse_8_183.graph";
 std::deque<std::string> query_names = {query_name};
 
 int num_samples = 1000000;

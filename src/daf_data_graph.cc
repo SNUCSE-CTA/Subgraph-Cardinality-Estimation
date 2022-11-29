@@ -164,7 +164,7 @@ void DataGraph::LoadAndProcessGraph() {
     for (auto x : label_probability) {
         ent -= x * log2(x);
     }
-    fprintf(stderr, "\nNode Label Entropy = %.02lf bits\n", ent);
+    fprintf(stderr, "Node Label Entropy = %.02lf bits\n", ent);
     std::map<Label, double> edge_label_probability;
     for (auto &p : edge_labels_) {
         edge_label_probability[p.second]+=1;
@@ -176,6 +176,6 @@ void DataGraph::LoadAndProcessGraph() {
     for (auto x : edge_label_probability) {
         ent -= x.second * log2(x.second);
     }
-    fprintf(stderr, "\nEdge Label Entropy = %.02lf bits\n", ent);
+    fprintf(stderr, "Edge Label Entropy = %.02lf bits\n", ent);
 }
 

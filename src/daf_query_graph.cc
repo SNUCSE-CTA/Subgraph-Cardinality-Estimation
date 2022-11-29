@@ -94,9 +94,9 @@ bool QueryGraph::LoadAndProcessGraph(const DataGraph &data) {
             }
         }
     }
-    fprintf(stdout, "QUERY (V, E) = (%u, %u)\n",GetNumVertices(), GetNumEdges());
-    fprintf(stdout, "NUM_QUERY_CYCLES = 3[%u] 4[%u]\n",num_three_cycles,num_four_cycles);
-    fflush(stdout);
+//    fprintf(stdout, "QUERY (V, E) = (%u, %u)\n",GetNumVertices(), GetNumEdges());
+//    fprintf(stdout, "NUM_QUERY_CYCLES = 3[%u] 4[%u]\n",num_three_cycles,num_four_cycles);
+//    fflush(stdout);
     return ProcessLabeledGraph(data);
 }
 
