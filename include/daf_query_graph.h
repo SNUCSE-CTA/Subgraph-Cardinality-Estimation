@@ -51,7 +51,8 @@ public:
 
     std::vector<std::vector<Vertex>> verticesbyLabel;
     std::vector<std::vector<std::vector<Vertex>>> triangles;
-    std::vector<std::vector<VertexPair>> four_cycles;
+    std::vector<std::vector<int>> four_cycles;
+    std::vector<std::vector<int>> edge_num_neighbors;
 
     std::vector<Vertex> GetVerticesByLabel(Size l) const {
         return verticesbyLabel[l];

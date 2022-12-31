@@ -11,8 +11,14 @@
 #include <unordered_map>
 
 #include "global/global.h"
+#include <boost/dynamic_bitset.hpp>
 
 namespace daf {
+    struct EdgeInfo {
+        int index, edge_label, vsum;
+        VertexPair vp;
+        boost::dynamic_bitset<uint64_t> edge_candidacy_;
+    };
     class Graph {
     public:
         explicit Graph(const std::string &filename);
@@ -39,6 +45,8 @@ namespace daf {
 
         inline Size GetDegree(Vertex v) const;
 
+        inline double GetAvgDegree() const;
+
         inline Size GetCoreNum(Vertex v) const;
 
         inline Label GetLabelFrequency(Label l) const;
@@ -46,15 +54,25 @@ namespace daf {
         inline Vertex GetNeighbor(Size i) const;
 
         inline bool CheckEdgeExist(Vertex u, Vertex v) const;
-        Label GetEdgeLabel(Vertex u, Vertex v);
+        inline Label GetELabel(int edge_idx) const {
+            return edge_info_[edge_idx].edge_label;
+        }
 
-        std::map<std::pair<Vertex, Vertex>, Label> edge_labels_;
-        std::set<std::pair<Vertex, Vertex>> edge_exists;
+        tsl::robin_map<std::pair<Vertex, Vertex>, Label> edge_labels_;
+        std::vector<tsl::robin_set<Vertex>> edge_exists;
+        std::vector<VertexPair> all_edges;
         Size num_label_;
+
+
+        inline std::vector<int>& GetIncidentEdges(Vertex v, Label l);
+
+        std::vector<EdgeInfo> edge_info_;
+        std::vector<std::vector<std::vector<int>>> incident_edges_;
+        tsl::robin_map<VertexPair, Size> edge_index_map_;
+
     protected:
         std::unordered_map<Label, Label> transferred_label_map;
         Label *true_label_;
-        void relabel();
 
         void LoadRoughGraph(std::vector<std::vector<Vertex>> *graph);
 
@@ -76,6 +94,10 @@ namespace daf {
         std::ifstream fin_;
     public:
         std::vector<std::vector<Vertex>> adj_list;
+
+        int GetEdgeIndex(Vertex u, Vertex v);
+
+        Vertex opposite(int edge_idx, Vertex from);
     };
 
     inline Size Graph::GetNumLabels() const { return num_label_; }
@@ -106,13 +128,27 @@ namespace daf {
 
 
     inline bool Graph::CheckEdgeExist(Vertex u, Vertex v) const {
-        return (edge_exists.find(std::make_pair(u, v)) != edge_exists.end())
-               || (edge_exists.find(std::make_pair(v, u)) != edge_exists.end());
+        return edge_exists[u].find(v) != edge_exists[u].end();
     }
 
-    inline Label Graph::GetEdgeLabel(Vertex u, Vertex v) {
-        return edge_labels_[{u, v}];
+    inline int Graph::GetEdgeIndex(Vertex u, Vertex v) {
+        if (!CheckEdgeExist(u, v)) return -1;
+        return edge_index_map_[{u, v}];
     }
+
+
+    inline std::vector<int>& Graph::GetIncidentEdges(Vertex v, Label l) {
+        return incident_edges_[v][l];
+    }
+
+    inline Vertex Graph::opposite(int edge_idx, Vertex from) {
+        return edge_info_[edge_idx].vsum - from;
+    }
+
+    inline double Graph::GetAvgDegree() const {
+        return GetNumEdges() * 1.0 / GetNumVertices();
+    }
+
 }
 
 #endif  // GRAPH_H_

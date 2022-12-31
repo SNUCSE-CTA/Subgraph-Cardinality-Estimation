@@ -54,6 +54,67 @@ bool QueryGraph::ProcessLabeledGraph(const DataGraph &data) {
     for (auto &it : adj_list) {
         std::sort(it.begin(), it.end());
     }
+
+
+    incident_edges_.resize(num_vertex_);
+    for (int i = 0; i < GetNumVertices(); i++) {
+        incident_edges_[i].resize(data.GetNumLabels());
+    }
+    int edge_id = 0;
+    for (int i = 0; i < GetNumVertices(); i++) {
+        for (int neighbor : adj_list[i]) {
+            edge_index_map_[{i, neighbor}] = edge_id;
+//                fprintf(stderr,"Query Edge {%u-%u} is %d\n", i, neighbor, edge_index_map_[{i, neighbor}]);
+            EdgeInfo e;
+            e.edge_label = edge_labels_[{i, neighbor}];
+            e.vsum = i + neighbor;
+            e.index = edge_id;
+            e.vp = {i, neighbor};
+            edge_info_.push_back(e);
+            incident_edges_[i][GetLabel(neighbor)].push_back(edge_id);
+            edge_id++;
+        }
+    }
+
+    edge_num_neighbors.resize(edge_info_.size(), std::vector<int>(data.GetNumLabels(), 0));
+    triangles.resize(GetNumVertices());
+    four_cycles.resize(edge_info_.size());
+    for (int i = 0; i < GetNumVertices(); i++) {
+        triangles[i].resize(GetNumVertices());
+    }
+    Size num_four_cycles = 0;
+    Size num_three_cycles = 0;
+    for (VertexPair vp : all_edges) {
+
+        auto &va = adj_list[vp.first];
+        auto &vb = adj_list[vp.second];
+        std::set_intersection(va.begin(), va.end(), vb.begin(), vb.end(),
+                              std::back_inserter(triangles[vp.first][vp.second]));
+        num_three_cycles += triangles[vp.first][vp.second].size();
+        edge_id = edge_index_map_[vp];
+
+        for (int label = 0; label < data.GetNumLabels(); label++) {
+            edge_num_neighbors[edge_id][label] += GetIncidentEdges(vp.first, label).size();
+            edge_num_neighbors[edge_id][label] += GetIncidentEdges(vp.second, label).size();
+        }
+        for (int trig_vertex : triangles[vp.first][vp.second]) {
+            edge_num_neighbors[edge_id][GetLabel(trig_vertex)]--;
+        }
+
+        for (VertexPair other : all_edges) {
+            if (other.first == vp.first or other.second == vp.first or
+                other.first == vp.second or other.second == vp.second) continue;
+            if (CheckEdgeExist(vp.second, other.first) and CheckEdgeExist(other.second, vp.first)){
+                int opp_edge_id = edge_index_map_[other];
+                four_cycles[edge_id].push_back(opp_edge_id);
+                num_four_cycles++;
+            }
+        }
+    }
+
+    fprintf(stdout, "QUERY (V, E) = (%u, %u)\n",GetNumVertices(), GetNumEdges());
+    fprintf(stdout, "NUM_QUERY_CYCLES = 3[%u] 4[%u]\n",num_three_cycles,num_four_cycles);
+    fflush(stdout);
     return true;
 }
 
@@ -67,36 +128,9 @@ bool QueryGraph::LoadAndProcessGraph(const DataGraph &data) {
     label_frequency_ = new Size[data.GetNumLabels()];
     verticesbyLabel.resize(data.GetNumLabels());
     start_off_ = new Size[GetNumVertices() + 1];
-    linear_adj_list_ = new Vertex[GetNumEdges() * 2];
+    linear_adj_list_ = new Vertex[GetNumEdges()*2];
     core_num_ = new Size[GetNumVertices()];
 
-    triangles.resize(GetNumVertices());
-    four_cycles.resize(GetNumVertices());
-    for (int i = 0; i < GetNumVertices(); i++) {
-        triangles[i].resize(GetNumVertices());
-        four_cycles[i].resize(GetNumVertices());
-    }
-    Size num_four_cycles = 0;
-    Size num_three_cycles = 0;
-    for (VertexPair vp : edge_exists) {
-        auto &va = adj_list[vp.first];
-        auto &vb = adj_list[vp.second];
-        std::set_intersection(va.begin(), va.end(), vb.begin(), vb.end(),
-                              std::back_inserter(triangles[vp.first][vp.second]));
-        num_three_cycles += triangles[vp.first][vp.second].size();
-        for (VertexPair other : edge_exists) {
-            if (other.first == vp.first or other.second == vp.first or
-                other.first == vp.second or other.second == vp.second) continue;
-            if ((edge_exists.find({vp.second, other.first}) != edge_exists.end()) and
-                (edge_exists.find({other.second, vp.first}) != edge_exists.end())) {
-                if (four_cycles[vp.first][vp.second].first == four_cycles[vp.first][vp.second].second)
-                    four_cycles[vp.first][vp.second] = other;
-            }
-        }
-    }
-//    fprintf(stdout, "QUERY (V, E) = (%u, %u)\n",GetNumVertices(), GetNumEdges());
-//    fprintf(stdout, "NUM_QUERY_CYCLES = 3[%u] 4[%u]\n",num_three_cycles,num_four_cycles);
-//    fflush(stdout);
     return ProcessLabeledGraph(data);
 }
 

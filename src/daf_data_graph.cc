@@ -64,7 +64,7 @@ void DataGraph::ProceesLabeledGraph() {
     // compute offsets & construct adjacent list and label frequency
     Size cur_idx = 0;
     max_degree_ = 0;
-    linear_adj_list_ = new Vertex[GetNumEdges() * 2];
+    linear_adj_list_ = new Vertex[GetNumEdges()*2];
     start_off_ = new Size[GetNumVertices() + 1];
     offs_by_label_ = new Size[GetNumLabels() + 1];
     adj_offs_by_label_ =
@@ -146,14 +146,81 @@ void DataGraph::ProceesLabeledGraph() {
 
 void DataGraph::LoadAndProcessGraph() {
     LoadRoughGraph(&adj_list);
+    std::cout << "Datagraph processing..." << std::endl;
     true_label_ = new Label[GetNumVertices()];
     vertices_sorted_ = new Vertex[GetNumVertices()];
     ProceesLabeledGraph();
+    std::cout << "Process_finish_incidence_check..." << std::endl;
 
     // sort back
     for (auto &it : adj_list) {
         std::sort(it.begin(), it.end());
     }
+
+    incident_edges_.resize(num_vertex_);
+    for (int i = 0; i < GetNumVertices(); i++) {
+        incident_edges_[i].resize(GetNumLabels());
+    }
+    int edge_id = 0;
+    for (int i = 0; i < GetNumVertices(); i++) {
+        for (int neighbor : adj_list[i]) {
+            edge_index_map_[{i, neighbor}] = edge_id;
+            EdgeInfo e;
+            e.edge_label = edge_labels_[{i, neighbor}];
+            e.vsum = i + neighbor;
+            e.index = edge_id;
+            e.vp = {i, neighbor};
+            edge_info_.push_back(e);
+            incident_edges_[i][GetLabel(neighbor)].push_back(edge_id);
+            edge_id++;
+        }
+    }
+    for (int i = 0; i < GetNumVertices(); i++) {
+        for (auto &vec : incident_edges_[i]) {
+            std::sort(vec.begin(), vec.end(),[this, i](auto &a, auto &b) -> bool {
+                int opp_a = edge_info_[a].vsum-i;
+                int opp_b = edge_info_[b].vsum-i;
+                return adj_list[opp_a].size() > adj_list[opp_b].size();
+            });
+        }
+    }
+    std::cout << "Incidence_ok! : ";
+    if (is_sparse()) {
+        std::cout << "Working on triangles...." << std::endl;
+        std::vector<int> common_neighbor(GetNumVertices(), -1);
+        int trig_count = 0;
+        for (int i = 0; i < GetNumVertices(); i++) {reverse_trigvertex[i] = std::vector<VertexPair>();}
+        for (int i = 0; i < GetNumVertices(); i++) {
+            for (int neighbor : adj_list[i]) {
+                trigvertex[{i, neighbor}] = tsl::hopscotch_map<int, std::pair<int, int>>();
+                for (int l = 0; l < GetNumLabels(); l++) {
+                    for (int fst_incident : GetIncidentEdges(i, l)) {
+                        int fst_neighbor = opposite(fst_incident, i);
+                        common_neighbor[fst_neighbor] = fst_incident;
+                    }
+                    for (int snd_incident : GetIncidentEdges(neighbor, l)) {
+                        int snd_neighbor = opposite(snd_incident, neighbor);
+                        if (common_neighbor[snd_neighbor] != -1) {
+                            trigvertex[{i, neighbor}][snd_neighbor] = {common_neighbor[snd_neighbor], snd_incident};
+                            trig_count++;
+                        }
+                    }
+                    for (int fst_incident : GetIncidentEdges(i, l)) {
+                        int fst_neighbor = opposite(fst_incident, i);
+                        common_neighbor[fst_neighbor] = -1;
+                    }
+                }
+            }
+            if (i % 50000 == 0) {
+                fprintf(stderr, "%d / %d found %d trigs\n",i,GetNumVertices(), trig_count);
+            }
+        }
+        std::cout << "Total # of trigs : " << trig_count << std::endl;
+    }
+    else {
+        std::cout << "Graph is not sparse...abandon triangle preprocessing" << std::endl;
+    }
+    std::cout << "Finished...Compute Entropy..." << std::endl;
 
     // Compute Data Label Entropy
     std::vector<double> label_probability;

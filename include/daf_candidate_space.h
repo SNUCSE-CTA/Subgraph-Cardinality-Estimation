@@ -32,32 +32,33 @@ namespace daf {
 
         inline Vertex GetCandidate(Vertex u, Size v_idx) const;
 
-//        gp_hash_table<VertexPair, gp_hash_table<VertexPair, null_type>> cs_edge_list_;
+        tsl::robin_map<VertexPair, tsl::robin_set<VertexPair>> cs_edge_list_;
+        tsl::robin_map<VertexPair, tsl::robin_map<Vertex, tsl::robin_set<Vertex>>> cs_adj_;
 
-        std::unordered_map<VertexPair, std::set<VertexPair>> cs_edge_list_;
 
+        void printCS();
+        std::vector<std::vector <Vertex>> candidate_set_;
     private:
         DataGraph &data_;
         QueryGraph &query_;
         DAG &dag_;
-        std::vector<std::vector <Vertex>> candidate_set_;
+        tsl::hopscotch_map<VertexPair, tsl::hopscotch_map<int, std::pair<int, int>>> trigvertex;
+        tsl::hopscotch_map<int, std::vector<VertexPair>> reverse_trigvertex;
+        tsl::robin_map<std::pair<int, int>, std::vector<std::vector<int>>> four_cycle_memo;
+
         std::vector<boost::dynamic_bitset<uint64_t>> BitsetCS;
         boost::dynamic_bitset<uint64_t> tmpBitset;
 
         QueryDegree *num_visit_cs_;
         Vertex *visited_candidates_;
-        Size num_visitied_candidates_;
+        Size num_visited_candidates;
 
-        Size num_cs_edges_;
 
+        int num_cs_edges_;
         std::vector<int> neighbor_label_frequency;
         std::vector<int> in_neighbor_cs;
 
         bool FilterByTopDownWithInit();
-
-        bool FilterByBottomUp();
-
-        bool FilterByTopDown();
 
         void ConstructCS();
 
@@ -79,6 +80,8 @@ namespace daf {
         bool CheckNeighborSafety(Vertex cur, Vertex cand);
 
         bool EdgeSafety(Vertex cur, Vertex cand, Vertex nxt, Vertex nxt_cand);
+
+        bool EdgeCandidacy(int query_edge_id, int data_edge_id);
     };
 
     inline Size CandidateSpace::GetCandidateSetSize(Vertex u) const {

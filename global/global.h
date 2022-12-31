@@ -6,13 +6,24 @@
 #include <limits>
 #include <vector>
 #include <cstring>
+#include <random>
+#include <boost/functional/hash.hpp>
+#include "include/tsl/robin_set.h"
+#include "include/tsl/robin_map.h"
+#include "include/tsl/hopscotch_set.h"
+#include "include/tsl/hopscotch_map.h"
 #include "global/log.h"
 
-using Size = uint32_t;
-using Vertex = uint32_t;
-using Label = uint32_t;
-using QueryDegree = uint8_t;
+using Size = int32_t;
+using Vertex = int32_t;
+using Label = int32_t;
+using QueryDegree = int8_t;
 using VertexPair = std::pair<Vertex, Vertex>;
+
+namespace daf {
+    static std::random_device rd;
+    static std::mt19937 gen(rd());
+}
 
 
 constexpr Size INVALID_SZ = std::numeric_limits<Size>::max();
@@ -23,7 +34,10 @@ namespace std {
     template <>
     struct hash<VertexPair> {
         auto operator()(const VertexPair &x) const -> size_t {
-            return x.first ^ x.second;
+            std::size_t seed = 17;
+            boost::hash_combine(seed, x.first);
+            boost::hash_combine(seed, x.second);
+            return seed;
         }
     };
 }  // namespace std

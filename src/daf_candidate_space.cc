@@ -2,21 +2,19 @@
 #include <map>
 #include <random>
 #include "include/daf_candidate_space.h"
-//#define BIPARTITE_SAFETY
-#define NEIGHBOR_SAFETY
+#include "global/timer.h"
+#define BIPARTITE_SAFETY
+//#define NEIGHBOR_SAFETY
 #define FOURCYCLE_SAFETY
-#ifdef NEIGHBOR_SAFETY
-    #undef BIPARTITE_SAFETY
-#endif
-#ifdef BIPARTITE_SAFETY
-    #undef NEIGHBOR_SAFETY
-#endif
-
 
 namespace daf {
+    Size global_iteration_count = 0;
+    Timer steptimer_1, steptimer_2, steptimer_3, steptimer_4;
+    Size counters[1000];
     CandidateSpace::CandidateSpace(DataGraph &data, QueryGraph &query,
                                    DAG &dag)
             : data_(data), query_(query), dag_(dag) {
+
         BitsetCS.resize(query_.GetNumVertices());
         candidate_set_.resize(query_.GetNumVertices());
 
@@ -27,10 +25,14 @@ namespace daf {
         visited_candidates_ =
                 new Vertex[data_.GetNumVertices() * query_.GetNumVertices()];
 
-        num_visitied_candidates_ = 0;
+        num_visited_candidates = 0;
 
         std::fill(num_visit_cs_, num_visit_cs_ + data_.GetNumVertices(), 0);
         num_cs_edges_ = 0;
+        for (EdgeInfo &e : data_.edge_info_) {
+            e.edge_candidacy_.clear();
+            e.edge_candidacy_.resize(query_.GetNumEdges()*2, true);
+        }
     }
 
     CandidateSpace::~CandidateSpace() {
@@ -39,17 +41,35 @@ namespace daf {
     }
 
     bool CandidateSpace::BuildCS() {
+
         srand(0);
         dag_.BuildDAG(-1);
         if (!FilterByTopDownWithInit()) return false;
-        Size stable_iter = 0;
-        while (stable_iter < 5) {
-            stable_iter++;
+
+        Timer csfilter_timer; csfilter_timer.Start();
+        auto CandSize = [this]() {
+            int totalCandidateSetSize = 0;
+            for (int i = 0; i < query_.GetNumVertices(); i++) {
+                totalCandidateSetSize += GetCandidateSetSize(i);
+            }
+            return totalCandidateSetSize;
+        };
+        int cand_sz = CandSize();
+        fprintf(stdout, "Iter %d : Cand_size = %d\n",global_iteration_count, cand_sz);
+        while (true) {
+            global_iteration_count++;
             bool pruned = false;
             if (Filter(false)) pruned = true;
             if (Filter(true)) pruned = true;
             if (!pruned) break;
+            int new_sz = CandSize();
+            if (new_sz > 0.95 * cand_sz) break;
+            cand_sz = new_sz;
+            fprintf(stdout, "Iter %d : Cand_size = %d\n",global_iteration_count, cand_sz);
         }
+        csfilter_timer.Stop();
+        fprintf(stdout, "CS prune time : %.02lf ms\n",csfilter_timer.GetTime());
+        fflush(stdout);
         ConstructCS();
         return true;
     }
@@ -65,25 +85,22 @@ namespace daf {
         for (Size i = 1; i < query_.GetNumVertices(); ++i) {
             Vertex cur = dag_.GetVertexOrderedByBFS(i);
 
-            if (query_.IsInNEC(cur) && !query_.IsNECRepresentation(cur)) continue;
-
             Label cur_label = query_.GetLabel(cur);
             QueryDegree num_parent = 0;
             for (Size i = 0; i < dag_.GetNumParents(cur); ++i) {
                 Vertex parent = dag_.GetParent(cur, i);
+                int query_edge_idx = query_.GetEdgeIndex(parent, cur);
 
                 for (Vertex parent_cand : candidate_set_[parent]) {
-                    for (Size i = data_.GetStartOffset(parent_cand, cur_label);
-                         i < data_.GetEndOffset(parent_cand, cur_label); ++i) {
-                        Vertex cand = data_.GetNeighbor(i);
-
-                        if (data_.GetDegree(cand) < query_.GetDegree(cur)) break;
-
+                    for (int data_edge_idx : data_.GetIncidentEdges(parent_cand, cur_label)) {
+                        Vertex cand = data_.opposite(data_edge_idx, parent_cand);
+                        if (data_.GetDegree(cand) < query_.GetDegree(cur)) continue;
+                        if (data_.GetELabel(data_edge_idx) != query_.GetELabel(query_edge_idx)) continue;
                         if (num_visit_cs_[cand] == num_parent) {
                             num_visit_cs_[cand] += 1;
                             if (num_parent == 0) {
-                                visited_candidates_[num_visitied_candidates_] = cand;
-                                num_visitied_candidates_ += 1;
+                                visited_candidates_[num_visited_candidates] = cand;
+                                num_visited_candidates += 1;
                             }
                         }
                     }
@@ -93,7 +110,7 @@ namespace daf {
 
             ComputeNbrInformation(cur, &max_nbr_degree, nbr_label_bitset);
 
-            for (Size i = 0; i < num_visitied_candidates_; ++i) {
+            for (Size i = 0; i < num_visited_candidates; ++i) {
                 Vertex cand = visited_candidates_[i];
                 if (num_visit_cs_[cand] == num_parent &&
                     data_.GetCoreNum(cand) >= query_.GetCoreNum(cur) &&
@@ -108,9 +125,9 @@ namespace daf {
                 break;
             }
 
-            while (num_visitied_candidates_ > 0) {
-                num_visitied_candidates_ -= 1;
-                num_visit_cs_[visited_candidates_[num_visitied_candidates_]] = 0;
+            while (num_visited_candidates > 0) {
+                num_visited_candidates -= 1;
+                num_visit_cs_[visited_candidates_[num_visited_candidates]] = 0;
             }
         }
 
@@ -120,18 +137,33 @@ namespace daf {
 
     bool CandidateSpace::BipartiteSafety(Vertex cur, Vertex cand) {
 #ifdef BIPARTITE_SAFETY
-        BipartiteMaximumMatching BP(query_.GetDegree(cur)+1, data_.GetDegree(cand)+1);
+//        if (data_.GetDegree(cand) >= 5 * query_.GetDegree(cur)) {
+//            return true;
+//        }
+        steptimer_1.Start();
+        std::vector <int> label_edge_offset(data_.GetNumLabels()+1);
+        for (int i = 0; i < data_.GetNumLabels(); i++) {
+            label_edge_offset[i+1] = data_.GetIncidentEdges(cand, i).size();
+            if (i > 0) label_edge_offset[i] += label_edge_offset[i-1];
+        }
+        BipartiteMaximumMatching BP(query_.GetDegree(cur), data_.GetDegree(cand));
         BP.clear_adj();
-        BP.add_edge(query_.GetDegree(cur), data_.GetDegree(cand));
         for (int i = 0; i < query_.adj_list[cur].size(); i++) {
             Vertex uc = query_.adj_list[cur][i];
-            for (int j = 0; j < data_.adj_list[cand].size(); j++) {
-                Vertex vc = data_.adj_list[cand][j];
-                if (BitsetCS[uc][vc])
-                    BP.add_edge(i, j);
+            int query_edge_index = query_.GetEdgeIndex(cur, uc);
+            int query_next_label = query_.GetLabel(uc);
+            int j = 0;
+            for (int edge_id : data_.GetIncidentEdges(cand, query_next_label)) {
+                Vertex vc = data_.opposite(edge_id, cand);
+                if (BitsetCS[uc][vc] and EdgeCandidacy(query_edge_index, edge_id)) {
+                    BP.add_edge(i, j + label_edge_offset[query_next_label]);
+                }
+                j++;
             }
         }
-        return (BP.solve() == (query_.GetDegree(cur)+1));
+        bool ok = (BP.solve() == (query_.GetDegree(cur)));
+        steptimer_1.Stop();
+        return ok;
 #else
         return true;
 #endif
@@ -157,6 +189,7 @@ namespace daf {
         }
 #endif
     }
+
     bool CandidateSpace::CheckNeighborSafety(Vertex cur, Vertex cand) {
 #ifdef NEIGHBOR_SAFETY
         auto tmp_label_frequency = neighbor_label_frequency;
@@ -175,68 +208,209 @@ namespace daf {
         return true;
     }
 
+    bool CandidateSpace::EdgeCandidacy(int query_edge_id, int data_edge_id) {
+        if (query_edge_id == -1 || data_edge_id == -1) return false;
+        return data_.edge_info_[data_edge_id].edge_candidacy_[query_edge_id];
+    }
+
     bool CandidateSpace::EdgeSafety(Vertex cur, Vertex cand, Vertex nxt, Vertex nxt_cand) {
-        if (query_.GetEdgeLabel(cur, nxt) != data_.GetEdgeLabel(cand, nxt_cand)) return false;
-        std::vector<Vertex> datagraph_cand_intersection;
-        std::set_intersection(data_.adj_list[cand].begin(), data_.adj_list[cand].end(),
-                              data_.adj_list[nxt_cand].begin(), data_.adj_list[nxt_cand].end(),
-                              std::back_inserter(datagraph_cand_intersection));
-        if (query_.triangles[cur][nxt].size() > datagraph_cand_intersection.size()) {
-            return false;
-        }
-#ifdef BIPARTITE_SAFETY
-        BipartiteMaximumMatching BP(query_.triangles[cur][nxt].size(), datagraph_cand_intersection.size());
-        BP.clear_adj();
-        for (int i = 0; i < query_.triangles[cur][nxt].size(); i++) {
-            Vertex uu = query_.triangles[cur][nxt][i];
-            for (int j = 0; j < datagraph_cand_intersection.size(); j++) {
-                Vertex vv = datagraph_cand_intersection[j];
-                if (BitsetCS[uu][vv]) {
-                    BP.add_edge(i, j);
+        // triangle filter
+        if (data_.is_sparse() and !query_.triangles[cur][nxt].empty()) {
+            steptimer_2.Start();
+            auto &common_neighbors = data_.trigvertex[{cand, nxt_cand}];
+            BipartiteMaximumMatching BP(query_.triangles[cur][nxt].size(), common_neighbors.size());
+            int triangle_index = -1;
+            for (auto trig_vertex_: query_.triangles[cur][nxt]) {
+                triangle_index++;
+                int tv_idx = -1;
+                int cur_trig_edge_ = query_.GetEdgeIndex(cur, trig_vertex_);
+                int nxt_trig_edge_ = query_.GetEdgeIndex(nxt, trig_vertex_);
+                for (auto tv: common_neighbors) {
+                    tv_idx++;
+                    if (!BitsetCS[trig_vertex_][tv.first]) continue;
+                    if (!EdgeCandidacy(cur_trig_edge_, tv.second.first)) continue;
+                    if (!EdgeCandidacy(nxt_trig_edge_, tv.second.second)) continue;
+                    BP.add_edge(triangle_index, tv_idx);
                 }
             }
+            bool ok = (BP.solve() == query_.triangles[cur][nxt].size());
+            steptimer_2.Stop();
+            if (!ok) return false;
         }
-        return (BP.solve() == query_.triangles[cur][nxt].size());
-#else
-        for (auto trig_vertex_ : query_.triangles[cur][nxt]) {
-            bool found = false;
-            for (Vertex &tcand : datagraph_cand_intersection) {
-                if (BitsetCS[trig_vertex_][tcand]) {
-                    found = true;
-                    break;
-                }
-            }
-            if (!found) return false;
+        else {
+//            int q_edge_id = query_.GetEdgeIndex(cur, nxt);
+//            steptimer_2.Start();
+//            bool ok = true;
+//            tsl::hopscotch_map<int, int> common_neighbor_index;
+//            int total_common_neighbor = 0;
+//            for (int label = 0; label < data_.GetNumLabels(); label++) {
+//                int common_neighbor = 0, cur_neighbor = 0, nxt_neighbor = 0;
+//                for (int i : data_.GetIncidentEdges(cand, label)) {
+//                    Vertex opp = data_.opposite(i, cand);
+//                    tmpBitset[opp] = true;
+//                    cur_neighbor++;
+//                }
+//                for (int i : data_.GetIncidentEdges(nxt_cand, label)) {
+//                    Vertex opp = data_.opposite(i, nxt_cand);
+//                    if (tmpBitset[opp]) {
+//                        common_neighbor_index[opp] = total_common_neighbor++;
+//                        common_neighbor++;
+//                    }
+//                    nxt_neighbor++;
+//                }
+//                for (int i : data_.GetIncidentEdges(cand, label)) {
+//                    Vertex opp = data_.opposite(i, cand);
+//                    tmpBitset[opp] = false;
+//                }
+//            }
+//            steptimer_2.Stop();
+//            BipartiteMaximumMatching BP(query_.triangles[cur][nxt].size(), total_common_neighbor);
+//            int triangle_index = 0;
+//            for (auto trig_vertex_ : query_.triangles[cur][nxt]) {
+//                bool found = false;
+//                Label trig_label_ = query_.GetLabel(trig_vertex_);
+//                int query_trig_edge_ = query_.GetEdgeIndex(cur, trig_vertex_);
+//                for (int i : data_.GetIncidentEdges(cand, trig_label_)) {
+//                    if (!EdgeCandidacy(query_trig_edge_, i)) continue;
+//                    Vertex opp = data_.opposite(i, cand);
+//                    tmpBitset[opp] = true;
+//                }
+//                query_trig_edge_ = query_.GetEdgeIndex(nxt, trig_vertex_);
+//                for (int i : data_.GetIncidentEdges(nxt_cand, trig_label_)) {
+//                    if (!EdgeCandidacy(query_trig_edge_, i)) continue;
+//                    Vertex opp = data_.opposite(i, nxt_cand);
+//                    if (tmpBitset[opp]) {
+//                        found = true;
+//                        BP.add_edge(triangle_index, common_neighbor_index[opp]);
+////                    break;
+//                    }
+//                }
+//                for (int i : data_.GetIncidentEdges(cand, trig_label_)) {
+//                    Vertex opp = data_.opposite(i, cand);
+//                    tmpBitset[opp] = false;
+//                }
+//                if (!found) return false;
+//                triangle_index++;
+//            }
+//            if (BP.solve() < query_.triangles[cur][nxt].size()) return false;
         }
-#endif
 #ifdef FOURCYCLE_SAFETY
-        // 4-cycle filter
-        VertexPair opp_edge = query_.four_cycles[cur][nxt];
-        if (opp_edge.first != opp_edge.second) {
-            Vertex third = opp_edge.first, fourth = opp_edge.second;
-            for (auto fourth_cand : data_.adj_list[cand]) {
-                if (BitsetCS[fourth][fourth_cand] and fourth_cand != nxt_cand)
-                    tmpBitset[fourth_cand] = true;
+        if (data_.is_sparse()
+//            and data_.GetDegree(cand) <= 20 * data_.GetAvgDegree() and data_.GetDegree(nxt_cand) <= 20 * data_.GetAvgDegree()
+        ) {
+            steptimer_3.Start();
+            int query_edge_id = query_.GetEdgeIndex(cur, nxt);
+            int data_edge_id  = data_.GetEdgeIndex(cand, nxt_cand);
+//            fprintf(stderr, "4-Cycle-Filter %d(%d)-%d(%d) [%d-%d]\n",cur,cand,nxt,nxt_cand,query_edge_id, data_edge_id);
+            std::pair<int, int> edgePair = {query_edge_id, data_edge_id};
+            // 4-cycle filter
+            bool first_index = false;
+            if (four_cycle_memo.find(edgePair) == four_cycle_memo.end()) {
+                first_index = true;
+                four_cycle_memo[edgePair] = std::vector<std::vector<int>>(query_.four_cycles[query_edge_id].size());
             }
-            bool found_valid_cycle = false;
-            for (auto third_cand : data_.adj_list[nxt_cand]) {
-                if (BitsetCS[third][third_cand] and third_cand != cand) {
-                    for (auto ft : data_.adj_list[third_cand]) {
-                        if (tmpBitset[ft]) {
-                            found_valid_cycle = true;
-                            goto checked;
+            std::vector<std::vector <int>> &four_cycle_answers = four_cycle_memo[edgePair];
+            for (int i = 0; i < query_.four_cycles[query_edge_id].size(); i++) {
+                int opp_edge_idx = query_.four_cycles[query_edge_id][i];
+                VertexPair opp_edge = query_.edge_info_[opp_edge_idx].vp;
+                if (opp_edge.first == opp_edge.second) continue;
+                Vertex third = opp_edge.first, fourth = opp_edge.second;
+                int query_fourth_edge_ = query_.GetEdgeIndex(cur, fourth);
+                Label fourth_label = query_.GetLabel(fourth);
+                int query_third_edge_ = query_.GetEdgeIndex(nxt, third);
+                Label third_label = query_.GetLabel(third);
+
+                int fst_thd = query_.GetEdgeIndex(cur, third);
+                int snd_fth = query_.GetEdgeIndex(nxt, fourth);
+
+                counters[0]++;
+                if (first_index) {
+                    steptimer_3.Start();
+
+                    for (auto fourth_cand_edge : data_.GetIncidentEdges(cand, fourth_label)) {
+                        if (!EdgeCandidacy(query_fourth_edge_, fourth_cand_edge)) continue;
+                        Vertex fourth_cand = data_.opposite(fourth_cand_edge, cand);
+                        if (BitsetCS[fourth][fourth_cand] and fourth_cand != nxt_cand)
+                            tmpBitset[fourth_cand] = true;
+                    }
+
+                    for (auto third_cand_edge : data_.GetIncidentEdges(nxt_cand, third_label)) {
+                        if (!EdgeCandidacy(query_third_edge_, third_cand_edge)) continue;
+                        Vertex third_cand = data_.opposite(third_cand_edge, nxt_cand);
+                        if (BitsetCS[third][third_cand] and third_cand != cand) {
+                            for (auto ft_edge : data_.GetIncidentEdges(third_cand, fourth_label)) {
+                                if (!EdgeCandidacy(opp_edge_idx, ft_edge)) continue;
+                                int ft = data_.opposite(ft_edge, third_cand);
+//                                if (fst_thd != -1) {
+//                                    int cd_eidx = data_.GetEdgeIndex(cand, third_cand);
+//                                    if (!EdgeCandidacy(fst_thd, cd_eidx)) continue;
+//                                }
+//                                if (snd_fth!= -1) {
+//                                    int cd_eidx = data_.GetEdgeIndex(nxt_cand, ft);
+//                                    if (!EdgeCandidacy(snd_fth, cd_eidx)) continue;
+//                                }
+                                if (tmpBitset[ft]) {
+                                    four_cycle_answers[i].push_back(ft_edge);
+                                }
+                            }
                         }
                     }
+//                    fprintf(stderr, "Indexing Cycle %d for edge %d (with edge %d) : %d candidates found\n",i,query_edge_id,opp_edge_idx,four_cycle_answers[i].size());
+//                    fprintf(stderr, "Candidates : ");
+//                    for (int j = 0; j < four_cycle_answers[i].size(); j++) {
+//                        fprintf(stderr, "%d ",four_cycle_answers[i][j]);
+//                    }
+//                    fprintf(stderr, "\n");
+                    for (auto fourth_cand_edge :  data_.GetIncidentEdges(cand, fourth_label)) {
+                        Vertex fourth_cand = data_.opposite(fourth_cand_edge, cand);
+                        tmpBitset[fourth_cand] = false;
+                    }
+                    if (four_cycle_answers[i].empty()) {
+                        steptimer_3.Stop();
+                        return false;
+                    }
+                    steptimer_3.Stop();
+                }
+                else {
+                    //20-19510
+//                    fprintf(stderr, "Cycle %d for edge %d (with edge %d) already indexed : %d candidates found\n",i,query_edge_id,opp_edge_idx,four_cycle_answers[i].size());
+                    steptimer_4.Start();
+                    while (!four_cycle_answers[i].empty()) {
+                        int candidate_edge_idx = four_cycle_answers[i].back();
+//                        fprintf(stderr, "    Matching edge %d with %d! ",candidate_edge_idx, opp_edge_idx);
+                        if (EdgeCandidacy(opp_edge_idx, candidate_edge_idx)) {
+                            int third_cand = -1, fourth_cand = -1;
+                            std::tie(third_cand, fourth_cand) = data_.edge_info_[candidate_edge_idx].vp;
+//                            fprintf(stderr, "cand 4cycle %d-%d-%d-%d\n",cand,nxt_cand,third_cand,fourth_cand);
+                            int third_edge_idx = data_.GetEdgeIndex(nxt_cand, third_cand);
+                            if (EdgeCandidacy(query_third_edge_, third_edge_idx)) {
+                                int fourth_edge_idx = data_.GetEdgeIndex(cand, fourth_cand);
+                                if (EdgeCandidacy(query_fourth_edge_, fourth_edge_idx)) {
+                                    steptimer_4.Stop();
+                                    counters[1]++;
+//                                    if (fst_thd != -1) {
+//                                        int cd_eidx = data_.GetEdgeIndex(cand, third_cand);
+//                                        if (!EdgeCandidacy(fst_thd, cd_eidx)) goto failed;
+//                                    }
+//                                    if (snd_fth!= -1) {
+//                                        int cd_eidx = data_.GetEdgeIndex(nxt_cand, fourth_cand);
+//                                        if (!EdgeCandidacy(snd_fth, cd_eidx)) goto failed;
+//                                    }
+                                    goto nxt_cycle;
+                                }
+                            }
+                        }
+                        failed:
+                        four_cycle_answers[i].pop_back();
+                    }
+//                    fprintf(stderr, "Cycle %d for edge %d (with edge %d) already indexed : %d candidates remains\n",i,query_edge_id,opp_edge_idx,four_cycle_answers[i].size());
+                    if (four_cycle_answers[i].empty()) return false;
+                    nxt_cycle:
+                    steptimer_4.Stop();
                 }
             }
-            checked:
-            for (auto fourth_cand : data_.adj_list[cand]) {
-                tmpBitset[fourth_cand] = false;
-            }
-            if (!found_valid_cycle) {
-                return false;
-            }
         }
+        else return true;
 #endif
         return true;
     }
@@ -255,21 +429,26 @@ namespace daf {
 
             Label cur_label = query_.GetLabel(cur);
             QueryDegree num_nxt = 0;
+
             for (Size i = 0; i < GetDAGNextCount(cur, topdown); ++i) {
                 Vertex nxt = GetDAGNextVertex(cur, i, topdown);
+                int query_edge_idx = query_.GetEdgeIndex(nxt, cur);
                 for (Vertex nxt_cand : candidate_set_[nxt]) {
-                    for (Size i = data_.GetStartOffset(nxt_cand, cur_label);
-                         i < data_.GetEndOffset(nxt_cand, cur_label); ++i) {
-                        Vertex cand = data_.GetNeighbor(i);
+                    for (int data_edge_idx : data_.GetIncidentEdges(nxt_cand, cur_label)) {
+                        Vertex cand = data_.opposite(data_edge_idx, nxt_cand);
                         if (data_.GetDegree(cand) < query_.GetDegree(cur)) break;
+                        if (data_.edge_info_[data_edge_idx].edge_candidacy_[query_edge_idx]==0) {
+                            continue;
+                        }
                         if (!EdgeSafety(cur, cand, nxt, nxt_cand)) {
+                            data_.edge_info_[data_edge_idx].edge_candidacy_[query_edge_idx] = false;
                             continue;
                         }
                         if (num_visit_cs_[cand] == num_nxt) {
                             num_visit_cs_[cand] += 1;
                             if (num_nxt == 0) {
-                                visited_candidates_[num_visitied_candidates_] = cand;
-                                num_visitied_candidates_ += 1;
+                                visited_candidates_[num_visited_candidates] = cand;
+                                num_visited_candidates += 1;
                             }
                         }
                     }
@@ -299,9 +478,9 @@ namespace daf {
                 exit(2);
             }
 
-            while (num_visitied_candidates_ > 0) {
-                num_visitied_candidates_ -= 1;
-                num_visit_cs_[visited_candidates_[num_visitied_candidates_]] = 0;
+            while (num_visited_candidates > 0) {
+                num_visited_candidates -= 1;
+                num_visit_cs_[visited_candidates_[num_visited_candidates]] = 0;
             }
         }
 
@@ -309,11 +488,16 @@ namespace daf {
     }
 
     void CandidateSpace::ConstructCS() {
+        Timer csbuild_timer; csbuild_timer.Start();
         cs_edge_list_.clear();
-        std::map<Vertex, Size> CandidateSTDSet[query_.GetNumVertices()];
+        tsl::hopscotch_map<Vertex, Size> CandidateSTDSet[query_.GetNumVertices()];
         for (Size i = 0; i < query_.GetNumVertices(); ++i) {
             for (Size idx = 0; idx < GetCandidateSetSize(i); idx++) {
                 CandidateSTDSet[i][candidate_set_[i][idx]] = idx;
+                cs_adj_[{i, candidate_set_[i][idx]}] = (tsl::robin_map<Vertex, tsl::robin_set<Vertex>>());
+                for (int q_nbr : query_.adj_list[i]) {
+                    cs_adj_[{i, candidate_set_[i][idx]}][q_nbr] = tsl::robin_set<Vertex>();
+                }
             }
         }
         for (Size i = 0; i < query_.GetNumVertices(); ++i) {
@@ -323,23 +507,26 @@ namespace daf {
 
             for (Size i = query_.GetStartOffset(u); i < query_.GetEndOffset(u); ++i) {
                 Vertex u_adj = query_.GetNeighbor(i);
-                Size u_adj_idx = i - query_.GetStartOffset(u);
+                int query_edge_idx = query_.GetEdgeIndex(u_adj, u);
 
                 for (Size v_adj_idx = 0; v_adj_idx < candidate_set_[u_adj].size(); ++v_adj_idx) {
                     Vertex v_adj = candidate_set_[u_adj][v_adj_idx];
 
-                    for (Size i = data_.GetStartOffset(v_adj, u_label);
-                         i < data_.GetEndOffset(v_adj, u_label); ++i) {
-                        Vertex v = data_.GetNeighbor(i);
+                    for (int data_edge_idx : data_.GetIncidentEdges(v_adj, u_label)) {
+                        Vertex v = data_.opposite(data_edge_idx, v_adj);
 
                         if (data_.GetDegree(v) < u_degree) break;
-                        if (!EdgeSafety(u, v, u_adj, v_adj)) continue;
-                        if (CandidateSTDSet[u].find(v) != CandidateSTDSet[u].end()){
+                        if (!EdgeCandidacy(query_edge_idx, data_edge_idx)) continue;
+                        if (BitsetCS[u][v]){
                             Size v_idx = CandidateSTDSet[u][v];
                             VertexPair u_pair = {u, v_idx};
                             VertexPair uc_pair = {u_adj, v_adj_idx};
                             cs_edge_list_[u_pair].insert(uc_pair);
                             cs_edge_list_[uc_pair].insert(u_pair);
+
+                            /* Add CS_ADJ_List; */
+                            cs_adj_[{u, v}][u_adj].insert(v_adj);
+                            cs_adj_[{u_adj, v_adj}][u].insert(v);
                         }
                     }
                 }
@@ -353,24 +540,15 @@ namespace daf {
             CandidateEdges += it.second.size();
         }
         CandidateEdges /= 2;
-        Size chk = 0;
-        for (auto &it : BitsetCS) {
-            chk += it.count();
-        }
-        int outcsDataVertex = 0;
-        for (int i = 0; i < data_.GetNumVertices(); i++) {
-            bool found = false;
-            for (int j = 0; j < query_.GetNumVertices(); j++) {
-                if (BitsetCS[j][i]) {
-                    found = true;
-                    break;
-                }
-            }
-            if (!found) {
-                outcsDataVertex++;
-            }
-        }
-        fprintf(stdout, "#BitCSSize : %u\n", chk);
+        csbuild_timer.Stop();
+
+        std::cout << "StepTimer 1 (BP-Safety) " << steptimer_1.GetTime() << "ms" << std::endl;
+        std::cout << "StepTimer 2 (Triangle-Safety) " << steptimer_2.GetTime() << "ms" << std::endl;
+        std::cout << "StepTimer 3 (4Cycle-Safety) " << steptimer_3.GetTime() << "ms" << std::endl;
+        std::cout << "StepTimer 4 (4Cycle-Safety-Bypass) " << steptimer_4.GetTime() << "ms" << std::endl;
+        fprintf(stdout, "Total 4-cycle checks = %u, Passed %u\n",counters[0], counters[1]);
+        fprintf(stdout, "CS build time : %.02lf ms\n",csbuild_timer.GetTime());
+        fprintf(stderr, "CS-SZ : %u %u\n", CandidateSpaceSize, CandidateEdges);
         fprintf(stdout, "#CandidateSetSize : %u\n", CandidateSpaceSize);
         fprintf(stdout, "#CandidateSetEdges : %u\n", CandidateEdges);
         double vert_cand_avg = (1.0*CandidateSpaceSize)/query_.GetNumVertices();
@@ -391,7 +569,7 @@ namespace daf {
              i < data_.GetEndOffsetByLabel(root_label); ++i) {
             Vertex cand = data_.GetVertexBySortedLabelOffset(i);
 
-            if (data_.GetDegree(cand) < query_.GetDegree(root)) break;
+            if (data_.GetDegree(cand) < query_.GetDegree(root)) continue;
 
             if (data_.GetCoreNum(cand) >= query_.GetCoreNum(root) &&
                 data_.CheckAllNbrLabelExist(cand, nbr_label_bitset) &&
@@ -418,6 +596,26 @@ namespace daf {
 
             if (query_.GetDegree(adj) > *max_nbr_degree) {
                 *max_nbr_degree = query_.GetDegree(adj);
+            }
+        }
+    }
+
+    void CandidateSpace::printCS() {
+        for (int i = 0; i < query_.GetNumVertices(); i++) {
+            fprintf(stdout, "Query [%d] : ",i);
+            for (int x : candidate_set_[i]) {
+                fprintf(stdout, "%d ", x);
+            }
+            fprintf(stdout, "\n");
+            for (int x : candidate_set_[i]) {
+                fprintf(stdout, "  CS Edges from %d\n",x);
+                for (auto it : cs_adj_[{i, x}]) {
+                    fprintf(stdout, "    Edge with [%d] : ",it.first);
+                    for (auto itt: it.second) {
+                        fprintf(stdout, "%d ", itt);
+                    }
+                    fprintf(stdout, "\n");
+                }
             }
         }
     }

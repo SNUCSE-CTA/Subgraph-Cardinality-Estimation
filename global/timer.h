@@ -13,15 +13,19 @@ public:
     void Stop() {
         e = std::chrono::high_resolution_clock::now();
         time += std::chrono::duration<double, std::milli>(e - s).count();
+        s = std::chrono::high_resolution_clock::now();
     }
 
     void Add(const Timer &other) { time += other.time; }
 
+    double Peek() { Stop(); return std::chrono::duration<double, std::milli>(e - s).count(); }
     double GetTime() { return time; }
+    double time;
 
 private:
     std::chrono::high_resolution_clock::time_point s, e;
-    double time;
 };
+
+static Timer GlobalTimer;
 
 #endif  // GLOBAL_TIMER_H_

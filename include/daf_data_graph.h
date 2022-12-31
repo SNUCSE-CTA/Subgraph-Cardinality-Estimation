@@ -8,9 +8,22 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
-
 #include "global/global.h"
 #include "include/daf_graph.h"
+
+struct triginfo {
+    int vertex;
+    int fst_edge_idx, snd_edge_idx;
+};
+
+namespace std {
+    template <>
+    struct hash<triginfo> {
+        auto operator()(const triginfo &x) const -> size_t {
+            return x.vertex;
+        }
+    };
+}
 
 namespace daf {
 class DataGraph : public Graph {
@@ -52,6 +65,10 @@ public:
     inline Size GetInitCandSize(Label l, Size d) const;
 
     inline bool CheckAllNbrLabelExist(Vertex v, uint64_t *nbr_bitset) const;
+    tsl::hopscotch_map<VertexPair, tsl::hopscotch_map<int, std::pair<int, int>>> trigvertex;
+    tsl::hopscotch_map<int, std::vector<VertexPair>> reverse_trigvertex;
+
+    bool is_sparse();
 
 private:
     Label *transferred_label_;
@@ -125,6 +142,11 @@ inline bool DataGraph::CheckAllNbrLabelExist(Vertex v,
     }
     return true;
 }
+
+inline bool DataGraph::is_sparse() {
+    return GetNumEdges() / GetNumVertices() < 10;
+}
+
 }
 
 #endif  // DATA_GRAPH_H_

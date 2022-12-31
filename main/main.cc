@@ -11,27 +11,37 @@
 #include "include/daf_data_graph.h"
 #include "include/daf_query_graph.h"
 #include "include/treesampling.h"
+#include "include/RWI.h"
 
 using namespace daf;
 const int UNIFORMRANDOM = 1;
 
 std::string dataset, ans_file_name, data_root;
-//std::string dataset = "wordnet", ans_file_name = dataset+"_ans", data_root = "../../dataset/";
-std::string data_name = "../../dataset/aids/data_graph/aids.graph";
-std::string query_name = "../../dataset/aids/query_graph/query_sparse_8_183.graph";
+//std::string dataset = "yeast", ans_file_name = dataset+"_ans", data_root = "../../dataset/";
+//std::string data_name = "../../dataset/wordnet/data_graph/wordnet.graph";
+//std::string query_name = "../../dataset/wordnet/query_graph/query_dense_20_119.graph";
+std::string data_name = "../../dataset/yeast/data_graph/yeast.graph";
+std::string query_name = "../../dataset/yeast/query_graph/query_sparse_32_123.graph";
 std::deque<std::string> query_names = {query_name};
 
 int num_samples = 1000000;
-
+int q_cnt = 0;
 std::unordered_map<std::string, double> true_cnt;
 void run_treesample (DataGraph &data, QueryGraph &query) {
-    Timer total_timer, sample_timer;
+    GlobalTimer.Start();
     std::cout << "Query Graph: " << query_name << "\n";
+    fflush(stdout);
+    Timer total_timer, sample_timer;
     total_timer.Start();
     query.LoadAndProcessGraph(data);
     total_timer.Stop();
+    std::cout << "Query Preprocess time: " << std::fixed << GlobalTimer.Peek() << " ms\n";
 
+
+    total_timer.Start();
     daf::DAG dag(data, query);
+    total_timer.Stop();
+    std::cout << "DAG Constructor upto: " << std::fixed << GlobalTimer.Peek() << " ms\n";
 
     total_timer.Start();
     dag.BuildDAG();
@@ -40,6 +50,7 @@ void run_treesample (DataGraph &data, QueryGraph &query) {
     total_timer.Start();
     daf::TreeSampling treesampling(data, query, dag);
     total_timer.Stop();
+    std::cout << "Upto Sampling Prep time: " << std::fixed << GlobalTimer.Peek() << " ms\n";
 
     for (auto u = 0; u < query.GetNumVertices(); ++u) {
         if (treesampling.CS.GetCandidateSetSize(u) == 0) {
@@ -52,12 +63,17 @@ void run_treesample (DataGraph &data, QueryGraph &query) {
     sample_timer.Stop();
 
     total_timer.Add(sample_timer);
-    std::cout << "Total time: " << total_timer.GetTime() << " ms\n";
-    std::cout << "Search time: " << sample_timer.GetTime() << " ms\n";
-    std::cout << "#TRUE : " << std::fixed << std::setprecision(6) << true_cnt[query_name] << std::endl;
-    std::cout << "#Matches(Approx) : " << std::fixed << std::setprecision(6) << est << std::endl;
-    std::cout << "#Tree : " << std::fixed << std::setprecision(6) << treesampling.total_trees_ << std::endl;
+    std::cout << "Total time: " << std::fixed << total_timer.GetTime() << " ms\n";
+    std::cout << "#TRUE : " << std::scientific << std::setprecision(4) << true_cnt[query_name] << std::endl;
+    std::cout << "#Matches(Approx) : " << std::scientific << std::setprecision(4) << est << std::endl;
+    std::cout << "#Tree : " << std::scientific << std::setprecision(4) << treesampling.total_trees_ << std::endl;
     std::cout << "Query Finished" << std::endl;
+
+
+    fprintf(stderr, "%-10s\t%-10s\tQ%04d/%04lu:\t%s...",
+            "TreeSampling", dataset.c_str(),
+            q_cnt, query_names.size(), query_name.c_str());
+    std::cerr << "Total time: " << total_timer.GetTime() << " ms\n";
 }
 
 
@@ -113,13 +129,8 @@ int main(int argc, char *argv[]) {
 //        query_names.pop_front();
 //    }
 
-    std::cout << "Loading query graph...\n";
-    int q_cnt = 0;
     for (std::string &qname : query_names) {
         q_cnt++;
-        fprintf(stderr, "%-10s\t%-10s\tQ%04d/%04lu:\t%s...\n",
-                "TreeSampling", dataset.c_str(),
-                q_cnt, query_names.size(), qname.c_str());
         query_name = qname;
         QueryGraph query(qname);
         run_treesample(data, query);

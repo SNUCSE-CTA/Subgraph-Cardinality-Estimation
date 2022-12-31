@@ -40,11 +40,13 @@ void Graph::LoadRoughGraph(std::vector<std::vector<Vertex>> *graph) {
 
     num_vertex_ = v;
     num_edge_ = e;
+    edge_exists.resize(num_vertex_);
     label_ = new Label[v];
     graph->resize(v);
 
     std::string line;
     // preprocessing
+    Label max_vertex_label_ = 0;
     while (getline(fin_, line)) {
         auto tok = parse(line, " ");
         type = tok[0];
@@ -59,14 +61,17 @@ void Graph::LoadRoughGraph(std::vector<std::vector<Vertex>> *graph) {
                 tok.pop_front();
             }
             label_[id] = l;
+            max_vertex_label_ = std::max(max_vertex_label_, label_[id]);
         } else if (type[0] == 'e') {
             Vertex v1, v2;
             v1 = std::stoi(tok.front()); tok.pop_front();
             v2 = std::stoi(tok.front()); tok.pop_front();
-            edge_exists.insert({v1, v2});
-            edge_exists.insert({v2, v1});
+            edge_exists[v1].insert(v2);
+            edge_exists[v2].insert(v1);
             (*graph)[v1].push_back(v2);
             (*graph)[v2].push_back(v1);
+            all_edges.push_back({v1, v2});
+            all_edges.push_back({v2, v1});
             Label el;
             if (tok.empty()) el = 0;
             else {
@@ -75,6 +80,7 @@ void Graph::LoadRoughGraph(std::vector<std::vector<Vertex>> *graph) {
             edge_labels_[{v1, v2}] = edge_labels_[{v2, v1}] = el;
         }
     }
+
     fprintf(stderr, "Graph Read finish : Read %u vertices and %u edges\n",num_vertex_,num_edge_);
     fin_.close();
 }

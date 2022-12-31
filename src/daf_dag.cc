@@ -24,6 +24,13 @@ namespace daf {
         bool *visit = new bool[query_.GetNumVertices()];
         std::fill(visit, visit + query_.GetNumVertices(), false);
         std::vector<Size> v_id(query_.GetNumVertices());
+        tree_children_.clear();
+        tree_children_.resize(query_.GetNumVertices());
+
+        std::fill(tree_sequence_.begin(), tree_sequence_.end(), 0);
+        std::fill(tree_parent_.begin(), tree_parent_.end(), -1);
+        kth_child_.resize(query_.GetNumVertices(), 0);
+
         tree_sequence_[0] = bfs_sequence_[0];
         std::queue <Vertex> q;
         q.push(tree_sequence_[0]);
@@ -53,6 +60,11 @@ namespace daf {
 //            }
 //            fprintf(stderr, "\n");
 //        }
+//        fprintf(stderr, "Tree Sequence : ");
+//        for (Size i = 0; i < query_.GetNumVertices(); i++) {
+//            fprintf(stderr, "%d ", tree_sequence_[i]);
+//        }
+//        fprintf(stderr, "\n");
         delete[] visit;
     }
     void DAG::BuildDAG(Vertex root_vertex) {

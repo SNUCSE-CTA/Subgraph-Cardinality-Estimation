@@ -55,12 +55,14 @@ namespace daf {
             return kth_child_[v];
         }
 
+        std::vector<std::vector<Vertex>> tree_neighbors_;
     private:
         const DataGraph &data_;
         const QueryGraph &query_;
         std::vector<Size> bfs_level_, init_cand_size_, kth_child_;
         std::vector<Vertex> tree_sequence_, bfs_sequence_, tree_parent_;
-        std::vector<std::vector<Vertex>> children_, parents_, tree_children_, tree_neighbors_;
+        std::vector<std::vector<Vertex>> children_, parents_, tree_children_;
+
         Vertex SelectRootVertex();
     };
 
