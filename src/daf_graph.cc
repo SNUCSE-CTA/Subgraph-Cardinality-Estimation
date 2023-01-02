@@ -66,8 +66,6 @@ void Graph::LoadRoughGraph(std::vector<std::vector<Vertex>> *graph) {
             Vertex v1, v2;
             v1 = std::stoi(tok.front()); tok.pop_front();
             v2 = std::stoi(tok.front()); tok.pop_front();
-            edge_exists[v1].insert(v2);
-            edge_exists[v2].insert(v1);
             (*graph)[v1].push_back(v2);
             (*graph)[v2].push_back(v1);
             all_edges.push_back({v1, v2});

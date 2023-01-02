@@ -39,16 +39,27 @@ namespace daf {
         return result;
     }
 
-    int rwi_sample_count = 1e6;
+    int rwi_sample_count = 1000000;
     int local_cand_cnt = 0, local_cand_sum = 0;
     double RWI::SampleDAGVertex(std::vector<int> &dag_sample, int vertex_id) {
-        Vertex u = dag_->GetVertexOrderedByBFS(vertex_id);
-        for (Size par_idx = 0; par_idx < dag_->GetNumParents(u); par_idx++) {
-            int up = dag_->GetParent(u, par_idx);
-            int vp = dag_sample[up];
-//            fprintf(stderr, "Consider parent %d(matched with %d) of %d\n",up,vp,u);
-            VertexPair uPair = {up, vp};
-            if (par_idx == 0) {
+        // Vertex with minimum number of (1-edge) candidate
+        std::vector<int> num_seen(query_->GetNumVertices(), 0);
+        int u = -1;
+        for (int i = 0; i < query_->GetNumVertices(); i++) {
+            if (dag_sample[i] != -1) continue;
+            for (int q_nbr : query_->adj_list[i]) {
+                if (dag_sample[q_nbr] != -1) {
+                    num_seen[i]++;
+                }
+            }
+        }
+        u = std::max_element(num_seen.begin(), num_seen.end()) - num_seen.begin();
+
+        local_candidate_set_[u].clear();
+        for (int q_nbr : query_->adj_list[u]) {
+            if (dag_sample[q_nbr] == -1) continue;
+            VertexPair uPair = {q_nbr, dag_sample[q_nbr]};
+            if (local_candidate_set_[u].empty()) {
                 local_candidate_set_[u] = CS->cs_adj_[uPair][u];
             }
             else {
@@ -59,12 +70,12 @@ namespace daf {
                     }
                     else ++it1;
                 }
-//                inplace_set_intersection(local_candidate_set_[u], CS.cs_adj_[uPair][u]);
             }
         }
         for (int seen_candidate : dag_sample) {
             local_candidate_set_[u].erase(seen_candidate);
         }
+
         if (local_candidate_set_[u].empty()) {
             rwi_sample_count--;
             return 0;
@@ -79,53 +90,63 @@ namespace daf {
         local_cand_cnt += 1;
 
         int sample_space_size = local_candidate_set_[u].size();
-        int num_branches = 1 + std::max(sample_space_size >> 5, 8);
+        int num_branches = 1 + std::max(sample_space_size >> 5, std::min(sample_space_size, 4));
         num_branches = std::min(num_branches, sample_space_size);
-        if (dag_->GetNumParents(u) == query_->adj_list[u].size()) num_branches = 1;
+        if (num_seen[u] == query_->adj_list[u].size()) num_branches = 1;
 //        local_cand_sum += num_branches;
 //        int num_branches = 1;
 
 //        fprintf(stderr, "local_cand_size of vertexid %d (%d) = %lu\n", vertex_id, u, local_candidate_set_[u].size());
-        local_cand_sum += local_candidate_set_[u].size();
+//        local_cand_sum += local_candidate_set_[u].size();
         local_cand_cnt++;
         std::vector <int> branches = sample_without_replacement(local_candidate_set_[u],num_branches);
-        num_branches = 0;
-        for (int c : branches) {
-            if (rwi_sample_count <= 0) break;
-            dag_sample[u] = c;
+        int skipped = 0;
+        for (int b = 0; b < num_branches; b++) {
+            if (rwi_sample_count <= 0) {
+                skipped = num_branches - b;
+                break;
+            }
+            dag_sample[u] = branches[b];
             auto nxt_result = SampleDAGVertex(dag_sample, vertex_id+1);
             ht_s += nxt_result;
-            num_branches++;
         }
         dag_sample[u] = -1;
-        return (local_candidate_set_[u].size() * ht_s / (1.0 * num_branches));
+        return (sample_space_size * ht_s / (num_branches - skipped));
     }
 
 
     double RWI::IntersectionSamplingEstimate(Size num_samples) {
         population.resize(data_->GetNumVertices());
         for (int i = 0; i < data_->GetNumVertices(); i++) population[i] = i;
+        // Choose the vertex with minimum C(u) as root
+        std::vector <int> num_cands(query_->GetNumVertices());
+        for (int i = 0; i < query_->GetNumVertices(); i++) {
+            num_cands[i] = CS->GetCandidateSetSize(i);
+        }
+        root = std::min_element(num_cands.begin(), num_cands.end()) - num_cands.begin();
+        root_candidates_ = CS->candidate_set_[root];
+        std::shuffle(root_candidates_.begin(), root_candidates_.end(), gen);
+//        std::cerr << "root : " << root << std::endl;
 //        CS->printCS();
-        root_candidates_ = CS->candidate_set_[dag_->GetRoot()];
 //        for (int x : root_candidates_) std::cerr << x << ' ';
 //        std::cerr << std::endl;
-        std::vector<int> dag_sample(query_->GetNumVertices(), -1);
-        std::cerr << "root : " << dag_->GetRoot() << std::endl;
         double ht_est = 0.0;
         int ht_count = 0;
-//        rwi_sample_count = num_samples;
+        std::vector<int> dag_sample(query_->GetNumVertices(), -1);
+        rwi_sample_count = num_samples;
         while (rwi_sample_count > 0) {
             for (int i = 0; i < query_->GetNumVertices(); i++)
                 local_candidate_set_[i].clear();
-            dag_sample[dag_->GetRoot()] = sample_without_weight(root_candidates_);
+            dag_sample[root] = root_candidates_[ht_count % root_candidates_.size()];
 //            fprintf(stderr, "Matching %d-%d\n",dag_->GetRoot(),dag_sample[dag_->GetRoot()]);
+//            fprintf(stderr, "%d samples left->",rwi_sample_count);
             auto recursion_result = SampleDAGVertex(dag_sample, 1);
-            fprintf(stderr, "%d samples left, weight = %.02lf\n",rwi_sample_count, recursion_result * root_candidates_.size());
+//            fprintf(stderr, "%d samples left, weight = %.02lf\n",rwi_sample_count, recursion_result * root_candidates_.size());
             ht_count++;
             ht_est += recursion_result;
 //            break;
         }
-        fprintf(stderr, "AVG Local Candset %.02lf\n",local_cand_sum*1.0/local_cand_cnt);
+//        fprintf(stderr, "AVG Local Candset %.02lf\n",local_cand_sum*1.0/local_cand_cnt);
         ht_est *= root_candidates_.size();
         ht_est /= ht_count;
         return ht_est;

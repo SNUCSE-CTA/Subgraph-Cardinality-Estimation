@@ -307,9 +307,9 @@ namespace daf {
             bool first_index = false;
             if (four_cycle_memo.find(edgePair) == four_cycle_memo.end()) {
                 first_index = true;
-                four_cycle_memo[edgePair] = std::vector<std::vector<int>>(query_.four_cycles[query_edge_id].size());
+                four_cycle_memo[edgePair] = std::vector<std::vector<std::tuple<int, int, int>>>(query_.four_cycles[query_edge_id].size());
             }
-            std::vector<std::vector <int>> &four_cycle_answers = four_cycle_memo[edgePair];
+            std::vector<std::vector <std::tuple<int, int, int>>> &four_cycle_answers = four_cycle_memo[edgePair];
             for (int i = 0; i < query_.four_cycles[query_edge_id].size(); i++) {
                 int opp_edge_idx = query_.four_cycles[query_edge_id][i];
                 VertexPair opp_edge = query_.edge_info_[opp_edge_idx].vp;
@@ -319,9 +319,6 @@ namespace daf {
                 Label fourth_label = query_.GetLabel(fourth);
                 int query_third_edge_ = query_.GetEdgeIndex(nxt, third);
                 Label third_label = query_.GetLabel(third);
-
-                int fst_thd = query_.GetEdgeIndex(cur, third);
-                int snd_fth = query_.GetEdgeIndex(nxt, fourth);
 
                 counters[0]++;
                 if (first_index) {
@@ -341,16 +338,11 @@ namespace daf {
                             for (auto ft_edge : data_.GetIncidentEdges(third_cand, fourth_label)) {
                                 if (!EdgeCandidacy(opp_edge_idx, ft_edge)) continue;
                                 int ft = data_.opposite(ft_edge, third_cand);
-//                                if (fst_thd != -1) {
-//                                    int cd_eidx = data_.GetEdgeIndex(cand, third_cand);
-//                                    if (!EdgeCandidacy(fst_thd, cd_eidx)) continue;
-//                                }
-//                                if (snd_fth!= -1) {
-//                                    int cd_eidx = data_.GetEdgeIndex(nxt_cand, ft);
-//                                    if (!EdgeCandidacy(snd_fth, cd_eidx)) continue;
-//                                }
                                 if (tmpBitset[ft]) {
-                                    four_cycle_answers[i].push_back(ft_edge);
+                                    counters[15]++;
+                                    int third_edge_idx = data_.GetEdgeIndex(nxt_cand, third_cand);
+                                    int fourth_edge_idx = data_.GetEdgeIndex(cand, ft);
+                                    four_cycle_answers[i].push_back({ft_edge, third_edge_idx, fourth_edge_idx});
                                 }
                             }
                         }
@@ -376,31 +368,22 @@ namespace daf {
 //                    fprintf(stderr, "Cycle %d for edge %d (with edge %d) already indexed : %d candidates found\n",i,query_edge_id,opp_edge_idx,four_cycle_answers[i].size());
                     steptimer_4.Start();
                     while (!four_cycle_answers[i].empty()) {
-                        int candidate_edge_idx = four_cycle_answers[i].back();
+                        int candidate_edge_idx, third_edge_idx, fourth_edge_idx;
+                        std::tie(candidate_edge_idx, third_edge_idx, fourth_edge_idx) = four_cycle_answers[i].back();
 //                        fprintf(stderr, "    Matching edge %d with %d! ",candidate_edge_idx, opp_edge_idx);
                         if (EdgeCandidacy(opp_edge_idx, candidate_edge_idx)) {
                             int third_cand = -1, fourth_cand = -1;
                             std::tie(third_cand, fourth_cand) = data_.edge_info_[candidate_edge_idx].vp;
 //                            fprintf(stderr, "cand 4cycle %d-%d-%d-%d\n",cand,nxt_cand,third_cand,fourth_cand);
-                            int third_edge_idx = data_.GetEdgeIndex(nxt_cand, third_cand);
                             if (EdgeCandidacy(query_third_edge_, third_edge_idx)) {
-                                int fourth_edge_idx = data_.GetEdgeIndex(cand, fourth_cand);
                                 if (EdgeCandidacy(query_fourth_edge_, fourth_edge_idx)) {
                                     steptimer_4.Stop();
                                     counters[1]++;
-//                                    if (fst_thd != -1) {
-//                                        int cd_eidx = data_.GetEdgeIndex(cand, third_cand);
-//                                        if (!EdgeCandidacy(fst_thd, cd_eidx)) goto failed;
-//                                    }
-//                                    if (snd_fth!= -1) {
-//                                        int cd_eidx = data_.GetEdgeIndex(nxt_cand, fourth_cand);
-//                                        if (!EdgeCandidacy(snd_fth, cd_eidx)) goto failed;
-//                                    }
                                     goto nxt_cycle;
                                 }
                             }
                         }
-                        failed:
+                        counters[15]++;
                         four_cycle_answers[i].pop_back();
                     }
 //                    fprintf(stderr, "Cycle %d for edge %d (with edge %d) already indexed : %d candidates remains\n",i,query_edge_id,opp_edge_idx,four_cycle_answers[i].size());
@@ -542,6 +525,7 @@ namespace daf {
         CandidateEdges /= 2;
         csbuild_timer.Stop();
 
+        std::cout << "Counter 15 : " << counters[15] << ' ' << "Counter 16 " << counters[16] << std::endl;
         std::cout << "StepTimer 1 (BP-Safety) " << steptimer_1.GetTime() << "ms" << std::endl;
         std::cout << "StepTimer 2 (Triangle-Safety) " << steptimer_2.GetTime() << "ms" << std::endl;
         std::cout << "StepTimer 3 (4Cycle-Safety) " << steptimer_3.GetTime() << "ms" << std::endl;

@@ -44,7 +44,7 @@ namespace daf {
         DAG &dag_;
         tsl::hopscotch_map<VertexPair, tsl::hopscotch_map<int, std::pair<int, int>>> trigvertex;
         tsl::hopscotch_map<int, std::vector<VertexPair>> reverse_trigvertex;
-        tsl::robin_map<std::pair<int, int>, std::vector<std::vector<int>>> four_cycle_memo;
+        tsl::robin_map<std::pair<int, int>, std::vector<std::vector<std::tuple<int, int, int>>>> four_cycle_memo;
 
         std::vector<boost::dynamic_bitset<uint64_t>> BitsetCS;
         boost::dynamic_bitset<uint64_t> tmpBitset;

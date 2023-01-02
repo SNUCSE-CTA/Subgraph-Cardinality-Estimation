@@ -171,6 +171,7 @@ void DataGraph::LoadAndProcessGraph() {
             e.index = edge_id;
             e.vp = {i, neighbor};
             edge_info_.push_back(e);
+            edge_exists[i][neighbor] = edge_id;
             incident_edges_[i][GetLabel(neighbor)].push_back(edge_id);
             edge_id++;
         }

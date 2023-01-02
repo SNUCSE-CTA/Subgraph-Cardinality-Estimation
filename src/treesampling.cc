@@ -15,7 +15,8 @@ namespace daf {
         Timer querytree_timer; querytree_timer.Start();
         BuildQueryTree();
         querytree_timer.Stop();
-        std::cout << "Query Tree Building Time: " << treeSamplingTimer.Peek() << " ms\n";
+        std::cout << "Query Tree Building Time: " << querytree_timer.Peek() << " ms\n";
+        seen_.resize(data_.GetNumVertices(), 0);
         RWI_ = RWI();
         RWI_.init(data, query, dag, CS);
     }
@@ -54,43 +55,43 @@ namespace daf {
             }
         }
         std::sort(edges.begin(), edges.end());
-        std::vector<std::pair<double, std::pair<Vertex, Vertex>>> cur_best_config;
-        double cur_best_trees = std::numeric_limits<double>::max();
-        for (int build_tree_iteration = 0; build_tree_iteration < 2; build_tree_iteration++) {
-            UnionFind uf(query_.GetNumVertices());
-            for (auto &t_neighbor : dag_.tree_neighbors_) {
-                t_neighbor.clear();
-            }
-            for (auto e : edges) {
-                auto [u, v] = e.second;
-                if (uf.unite(u, v)) {
-//                fprintf(stderr, "%u %u\n",u,v);
-                    dag_.AddTreeEdge(u, v);
-                }
-            }
-            dag_.BuildTree();
-            double num_tree_homo = ConstructTreeDP();
-            if (num_tree_homo < cur_best_trees) {
-                cur_best_trees = num_tree_homo;
-                cur_best_config = edges;
-            }
-//            fprintf(stderr, "ITER %d NUM_TREE = %.4le BEST %.04le\n",build_tree_iteration, num_tree_homo, cur_best_trees);
-            if (build_tree_iteration == 1) {
-                for (auto &e : edges) {
-                    int i, q_neighbor;
-                    std::tie(i, q_neighbor) = e.second;
-                    e.first *= ((1 + CS.GetCandidateSetSize(i)) * (1 + CS.GetCandidateSetSize(q_neighbor)));
-                }
-                std::sort(edges.begin(), edges.end());
-            }
-            else{
-                std::shuffle(edges.begin(), edges.end(), gen);
-            }
-        }
-        edges = cur_best_config;
-        for (auto &t_neighbor : dag_.tree_neighbors_) {
-            t_neighbor.clear();
-        }
+//        std::vector<std::pair<double, std::pair<Vertex, Vertex>>> cur_best_config;
+//        double cur_best_trees = std::numeric_limits<double>::max();
+//        for (int build_tree_iteration = 0; build_tree_iteration < 2; build_tree_iteration++) {
+//            UnionFind uf(query_.GetNumVertices());
+//            for (auto &t_neighbor : dag_.tree_neighbors_) {
+//                t_neighbor.clear();
+//            }
+//            for (auto e : edges) {
+//                auto [u, v] = e.second;
+//                if (uf.unite(u, v)) {
+////                fprintf(stderr, "%u %u\n",u,v);
+//                    dag_.AddTreeEdge(u, v);
+//                }
+//            }
+//            dag_.BuildTree();
+//            double num_tree_homo = ConstructTreeDP();
+//            if (num_tree_homo < cur_best_trees) {
+//                cur_best_trees = num_tree_homo;
+//                cur_best_config = edges;
+//            }
+////            fprintf(stderr, "ITER %d NUM_TREE = %.4le BEST %.04le\n",build_tree_iteration, num_tree_homo, cur_best_trees);
+//            if (build_tree_iteration == 1) {
+//                for (auto &e : edges) {
+//                    int i, q_neighbor;
+//                    std::tie(i, q_neighbor) = e.second;
+//                    e.first *= ((1 + CS.GetCandidateSetSize(i)) * (1 + CS.GetCandidateSetSize(q_neighbor)));
+//                }
+//                std::sort(edges.begin(), edges.end());
+//            }
+//            else{
+//                std::shuffle(edges.begin(), edges.end(), gen);
+//            }
+//        }
+//        edges = cur_best_config;
+//        for (auto &t_neighbor : dag_.tree_neighbors_) {
+//            t_neighbor.clear();
+//        }
         UnionFind uf(query_.GetNumVertices());
         for (auto e : edges) {
             auto [u, v] = e.second;
@@ -217,7 +218,6 @@ namespace daf {
                 seen_[cand] = true;
             }
         }
-        if (result == -1) goto done;
 
         for (auto &[i, j] : query_.all_edges) {
             if (sample[i] < 0 || sample[j] < 0) continue;
@@ -285,22 +285,22 @@ namespace daf {
     }
 
     double TreeSampling::EstimateEmbeddings(Size num_samples) {
-//        Timer sampletimer_uni, sampletimer_inter;
-//        sampletimer_uni.Start();
-//        std::pair<double, int> uniformResult = UniformSamplingEstimate(num_samples);
-//        sampletimer_uni.Stop();
-//        std::cout << "Uniform Sampling time: " << std::fixed << sampletimer_uni.GetTime() << " ms\n";
-//        if (uniformResult.second == 0) {
-//            sampletimer_inter.Start();
-//            double intersectionResult = IntersectionSamplingEstimate(num_samples);
-//            sampletimer_inter.Stop();
-//            std::cout << "Intersection Sampling time: " << std::fixed << sampletimer_inter.GetTime() << " ms\n";
-//            return intersectionResult;
-//        }
-//        return uniformResult.first;
+        Timer sampletimer_uni, sampletimer_inter;
+        sampletimer_uni.Start();
+        std::pair<double, int> uniformResult = UniformSamplingEstimate(num_samples);
+        sampletimer_uni.Stop();
+        std::cout << "Uniform Sampling time: " << std::fixed << sampletimer_uni.GetTime() << " ms\n";
+        if (uniformResult.second == 0) {
+            sampletimer_inter.Start();
+            double intersectionResult = RWI_.IntersectionSamplingEstimate(num_samples);
+            sampletimer_inter.Stop();
+            std::cout << "Intersection Sampling time: " << std::fixed << sampletimer_inter.GetTime() << " ms\n";
+            return intersectionResult;
+        }
+        return uniformResult.first;
 //        CS.printCS();
-        double intersectionResult = RWI_.IntersectionSamplingEstimate(1000000);
-        return intersectionResult;
+//        double intersectionResult = RWI_.IntersectionSamplingEstimate(1000000);
+//        return intersectionResult;
     }
 
 }

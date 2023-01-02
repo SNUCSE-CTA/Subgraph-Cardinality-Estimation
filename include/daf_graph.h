@@ -59,7 +59,7 @@ namespace daf {
         }
 
         tsl::robin_map<std::pair<Vertex, Vertex>, Label> edge_labels_;
-        std::vector<tsl::robin_set<Vertex>> edge_exists;
+        std::vector<tsl::robin_map<Vertex, int>> edge_exists;
         std::vector<VertexPair> all_edges;
         Size num_label_;
 
@@ -133,7 +133,7 @@ namespace daf {
 
     inline int Graph::GetEdgeIndex(Vertex u, Vertex v) {
         if (!CheckEdgeExist(u, v)) return -1;
-        return edge_index_map_[{u, v}];
+        return edge_exists[u][v];
     }
 
 

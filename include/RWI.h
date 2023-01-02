@@ -9,6 +9,7 @@ namespace daf {
         DataGraph *data_;
         QueryGraph *query_;
         DAG *dag_;
+        Vertex root;
 
         RWI(){};
         ~RWI(){};
