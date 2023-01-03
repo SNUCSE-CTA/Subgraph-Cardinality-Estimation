@@ -11,6 +11,7 @@
 #include <unordered_map>
 
 #include "global/global.h"
+#include "global/timer.h"
 #include <boost/dynamic_bitset.hpp>
 
 namespace daf {
@@ -132,8 +133,10 @@ namespace daf {
     }
 
     inline int Graph::GetEdgeIndex(Vertex u, Vertex v) {
-        if (!CheckEdgeExist(u, v)) return -1;
-        return edge_exists[u][v];
+        functionCallCounter++;
+        auto it = edge_exists[u].find(v);
+        if (it == edge_exists[u].end()) return -1;
+        return (*it).second;
     }
 
 

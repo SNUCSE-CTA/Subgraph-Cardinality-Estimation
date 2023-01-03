@@ -50,7 +50,10 @@ public:
     inline Label GetMaxLabel() const;
 
     std::vector<std::vector<Vertex>> verticesbyLabel;
-    std::vector<std::vector<std::vector<Vertex>>> triangles;
+
+    std::vector<std::vector<Vertex>> triangles;
+    std::vector<tsl::hopscotch_map<int, std::pair<int, int>>> trigvertex;
+
     std::vector<std::vector<int>> four_cycles;
     std::vector<std::vector<int>> edge_num_neighbors;
 

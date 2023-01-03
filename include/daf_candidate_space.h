@@ -42,9 +42,24 @@ namespace daf {
         DataGraph &data_;
         QueryGraph &query_;
         DAG &dag_;
+
+        struct cycle_information {
+            cycle_information() {
+                d_opp_edge_idx = -1;
+                third_inc_idx = fourth_inc_idx = 0;
+            }
+            int q_opp_edge_idx;
+            int third_inc_idx, fourth_inc_idx;
+            int third, fourth;
+            int q_third_edge_idx, q_fourth_edge_idx; // tex = 2->3, fex = 1->4
+            int d_third_edge_idx, d_fourth_edge_idx; // tex = 2->3, fex = 1->4
+            int d_opp_edge_idx; // 3->4
+
+        };
         tsl::hopscotch_map<VertexPair, tsl::hopscotch_map<int, std::pair<int, int>>> trigvertex;
         tsl::hopscotch_map<int, std::vector<VertexPair>> reverse_trigvertex;
-        tsl::robin_map<std::pair<int, int>, std::vector<std::vector<std::tuple<int, int, int>>>> four_cycle_memo;
+        tsl::robin_map<std::pair<int, int>, std::vector<cycle_information>> four_cycle_memo;
+        tsl::robin_map<std::pair<int, int>, std::vector<std::vector<std::tuple<int, int, int>>>> four_cycle_memo_old;
 
         std::vector<boost::dynamic_bitset<uint64_t>> BitsetCS;
         boost::dynamic_bitset<uint64_t> tmpBitset;
@@ -79,9 +94,13 @@ namespace daf {
 
         bool CheckNeighborSafety(Vertex cur, Vertex cand);
 
-        bool EdgeSafety(Vertex cur, Vertex cand, Vertex nxt, Vertex nxt_cand);
+        bool EdgeSafety(int query_edge_id, int data_edge_id);
 
         bool EdgeCandidacy(int query_edge_id, int data_edge_id);
+
+        bool TriangleSafety(int query_edge_id, int data_edge_id);
+
+        bool FourCycleSafety(int query_edge_id, int data_edge_id);
     };
 
     inline Size CandidateSpace::GetCandidateSetSize(Vertex u) const {

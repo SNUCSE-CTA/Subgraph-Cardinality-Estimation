@@ -14,6 +14,7 @@
 #include "include/tsl/hopscotch_map.h"
 #include "global/log.h"
 
+static int functionCallCounter;
 using Size = int32_t;
 using Vertex = int32_t;
 using Label = int32_t;

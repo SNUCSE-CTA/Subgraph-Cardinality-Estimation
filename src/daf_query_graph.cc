@@ -78,30 +78,23 @@ bool QueryGraph::ProcessLabeledGraph(const DataGraph &data) {
     }
 
     edge_num_neighbors.resize(edge_info_.size(), std::vector<int>(data.GetNumLabels(), 0));
-    triangles.resize(GetNumVertices());
     four_cycles.resize(edge_info_.size());
-    for (int i = 0; i < GetNumVertices(); i++) {
-        triangles[i].resize(GetNumVertices());
-    }
+    triangles.resize(edge_id, std::vector<Vertex>());
+    trigvertex.resize(edge_id, tsl::hopscotch_map<int, std::pair<int, int>>());
+
     Size num_four_cycles = 0;
     Size num_three_cycles = 0;
-    for (VertexPair vp : all_edges) {
-
+    for (EdgeInfo e : edge_info_){
+        VertexPair vp = e.vp;
         auto &va = adj_list[vp.first];
         auto &vb = adj_list[vp.second];
         std::set_intersection(va.begin(), va.end(), vb.begin(), vb.end(),
-                              std::back_inserter(triangles[vp.first][vp.second]));
-        num_three_cycles += triangles[vp.first][vp.second].size();
+                              std::back_inserter(triangles[e.index]));
+        for (auto &vc : triangles[e.index]) {
+            trigvertex[e.index][vc] = {GetEdgeIndex(vp.first, vc), GetEdgeIndex(vp.second, vc)};
+        }
+        num_three_cycles += triangles[e.index].size();
         edge_id = edge_index_map_[vp];
-
-        for (int label = 0; label < data.GetNumLabels(); label++) {
-            edge_num_neighbors[edge_id][label] += GetIncidentEdges(vp.first, label).size();
-            edge_num_neighbors[edge_id][label] += GetIncidentEdges(vp.second, label).size();
-        }
-        for (int trig_vertex : triangles[vp.first][vp.second]) {
-            edge_num_neighbors[edge_id][GetLabel(trig_vertex)]--;
-        }
-
         for (VertexPair other : all_edges) {
             if (other.first == vp.first or other.second == vp.first or
                 other.first == vp.second or other.second == vp.second) continue;

@@ -26,6 +26,6 @@ private:
     std::chrono::high_resolution_clock::time_point s, e;
 };
 
-static Timer GlobalTimer;
+static Timer GlobalTimer, functionTimer;
 
 #endif  // GLOBAL_TIMER_H_

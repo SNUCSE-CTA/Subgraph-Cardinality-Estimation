@@ -185,6 +185,7 @@ void DataGraph::LoadAndProcessGraph() {
             });
         }
     }
+    trigvertex.resize(edge_id, tsl::hopscotch_map<int, std::pair<int, int>>());
     std::cout << "Incidence_ok! : ";
     if (is_sparse()) {
         std::cout << "Working on triangles...." << std::endl;
@@ -193,7 +194,6 @@ void DataGraph::LoadAndProcessGraph() {
         for (int i = 0; i < GetNumVertices(); i++) {reverse_trigvertex[i] = std::vector<VertexPair>();}
         for (int i = 0; i < GetNumVertices(); i++) {
             for (int neighbor : adj_list[i]) {
-                trigvertex[{i, neighbor}] = tsl::hopscotch_map<int, std::pair<int, int>>();
                 for (int l = 0; l < GetNumLabels(); l++) {
                     for (int fst_incident : GetIncidentEdges(i, l)) {
                         int fst_neighbor = opposite(fst_incident, i);
@@ -202,7 +202,7 @@ void DataGraph::LoadAndProcessGraph() {
                     for (int snd_incident : GetIncidentEdges(neighbor, l)) {
                         int snd_neighbor = opposite(snd_incident, neighbor);
                         if (common_neighbor[snd_neighbor] != -1) {
-                            trigvertex[{i, neighbor}][snd_neighbor] = {common_neighbor[snd_neighbor], snd_incident};
+                            trigvertex[edge_exists[i][neighbor]][snd_neighbor] = {common_neighbor[snd_neighbor], snd_incident};
                             trig_count++;
                         }
                     }
