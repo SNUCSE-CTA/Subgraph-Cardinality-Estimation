@@ -32,7 +32,7 @@ namespace daf {
 
         inline Vertex GetCandidate(Vertex u, Size v_idx) const;
 
-        tsl::robin_map<VertexPair, tsl::robin_set<VertexPair>> cs_edge_list_;
+        tsl::robin_map<VertexPair, std::vector<VertexPair>> cs_edge_list_;
         tsl::robin_map<VertexPair, tsl::robin_map<Vertex, tsl::robin_set<Vertex>>> cs_adj_;
 
 
@@ -43,8 +43,8 @@ namespace daf {
         QueryGraph &query_;
         DAG &dag_;
 
-        struct cycle_information {
-            cycle_information() {
+        struct online_cycle_information {
+            online_cycle_information() {
                 d_opp_edge_idx = -1;
                 third_inc_idx = fourth_inc_idx = 0;
             }
@@ -54,12 +54,11 @@ namespace daf {
             int q_third_edge_idx, q_fourth_edge_idx; // tex = 2->3, fex = 1->4
             int d_third_edge_idx, d_fourth_edge_idx; // tex = 2->3, fex = 1->4
             int d_opp_edge_idx; // 3->4
-
         };
         tsl::hopscotch_map<VertexPair, tsl::hopscotch_map<int, std::pair<int, int>>> trigvertex;
         tsl::hopscotch_map<int, std::vector<VertexPair>> reverse_trigvertex;
-        tsl::robin_map<std::pair<int, int>, std::vector<cycle_information>> four_cycle_memo;
-        tsl::robin_map<std::pair<int, int>, std::vector<std::vector<std::tuple<int, int, int>>>> four_cycle_memo_old;
+        tsl::robin_map<std::pair<int, int>, std::vector<int>> four_cycle_memo;
+        tsl::robin_map<std::pair<int, int>, std::vector<online_cycle_information>> four_cycle_memo_old;
 
         std::vector<boost::dynamic_bitset<uint64_t>> BitsetCS;
         boost::dynamic_bitset<uint64_t> tmpBitset;
@@ -101,6 +100,7 @@ namespace daf {
         bool TriangleSafety(int query_edge_id, int data_edge_id);
 
         bool FourCycleSafety(int query_edge_id, int data_edge_id);
+        bool FourCycleSafetyOnline(int query_edge_id, int data_edge_id);
     };
 
     inline Size CandidateSpace::GetCandidateSetSize(Vertex u) const {

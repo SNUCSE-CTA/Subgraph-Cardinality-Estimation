@@ -24,14 +24,6 @@ namespace daf {
     TreeSampling::~TreeSampling() {}
 
     void TreeSampling::BuildQueryTree() {
-//        for (auto &e : CS.cs_edge_list_) {
-//            VertexPair u_pair = e.first;
-//            fprintf(stderr, "[%u, %u] -> ",u_pair.first,u_pair.second);
-//            for (auto &ee : e.second) {
-//                fprintf(stderr, "[%u, %u] ",ee.first,ee.second);
-//            }
-//            fprintf(stderr, "\n");
-//        }
         std::vector<std::pair<double, std::pair<Vertex, Vertex>>> edges;
         for (Size i = 0; i < query_.GetNumVertices(); ++i) {
             for (Size nidx = query_.GetStartOffset(i); nidx < query_.GetEndOffset(i); ++nidx) {
@@ -41,11 +33,6 @@ namespace daf {
                 for (Size cs_idx = 0; cs_idx < CS.GetCandidateSetSize(i); ++cs_idx) {
                     int v = CS.GetCandidate(i, cs_idx);
                     Size num_cs_neighbor = CS.cs_adj_[{i, v}][q_neighbor].size();
-//                    Size num_cs_neighbor = 0;
-//                    for (VertexPair vp : CS.cs_edge_list_[{i, cs_idx}]) {
-//                        if (vp.first == q_neighbor)
-//                            num_cs_neighbor++;
-//                    }
                     ij_cs_edge += num_cs_neighbor;
                 }
                 ij_cs_edge /= ((1 + CS.GetCandidateSetSize(i)) * (1 + CS.GetCandidateSetSize(q_neighbor)));
@@ -55,48 +42,10 @@ namespace daf {
             }
         }
         std::sort(edges.begin(), edges.end());
-//        std::vector<std::pair<double, std::pair<Vertex, Vertex>>> cur_best_config;
-//        double cur_best_trees = std::numeric_limits<double>::max();
-//        for (int build_tree_iteration = 0; build_tree_iteration < 2; build_tree_iteration++) {
-//            UnionFind uf(query_.GetNumVertices());
-//            for (auto &t_neighbor : dag_.tree_neighbors_) {
-//                t_neighbor.clear();
-//            }
-//            for (auto e : edges) {
-//                auto [u, v] = e.second;
-//                if (uf.unite(u, v)) {
-////                fprintf(stderr, "%u %u\n",u,v);
-//                    dag_.AddTreeEdge(u, v);
-//                }
-//            }
-//            dag_.BuildTree();
-//            double num_tree_homo = ConstructTreeDP();
-//            if (num_tree_homo < cur_best_trees) {
-//                cur_best_trees = num_tree_homo;
-//                cur_best_config = edges;
-//            }
-////            fprintf(stderr, "ITER %d NUM_TREE = %.4le BEST %.04le\n",build_tree_iteration, num_tree_homo, cur_best_trees);
-//            if (build_tree_iteration == 1) {
-//                for (auto &e : edges) {
-//                    int i, q_neighbor;
-//                    std::tie(i, q_neighbor) = e.second;
-//                    e.first *= ((1 + CS.GetCandidateSetSize(i)) * (1 + CS.GetCandidateSetSize(q_neighbor)));
-//                }
-//                std::sort(edges.begin(), edges.end());
-//            }
-//            else{
-//                std::shuffle(edges.begin(), edges.end(), gen);
-//            }
-//        }
-//        edges = cur_best_config;
-//        for (auto &t_neighbor : dag_.tree_neighbors_) {
-//            t_neighbor.clear();
-//        }
         UnionFind uf(query_.GetNumVertices());
         for (auto e : edges) {
             auto [u, v] = e.second;
             if (uf.unite(u, v)) {
-//                fprintf(stderr, "%u %u\n",u,v);
                 dag_.AddTreeEdge(u, v);
             }
         }
@@ -106,15 +55,10 @@ namespace daf {
     }
 
     double TreeSampling::ConstructTreeDP() {
-//        fprintf(stderr, "ConstructTreeDP\n");
-        num_trees_.clear();
         num_trees_.resize(query_.GetNumVertices());
         for (auto &it : num_trees_) it.clear();
-        sample_candidates_.clear();
         sample_candidates_.resize(query_.GetNumVertices());
-        sample_candidate_weights_.clear();
         sample_candidate_weights_.resize(query_.GetNumVertices());
-        sample_dist_.clear();
         sample_dist_.resize(query_.GetNumVertices());
         for (Size i = 0; i < query_.GetNumVertices(); ++i) {
             Vertex u = dag_.GetVertexOrderedByTree(query_.GetNumVertices() - i - 1);
@@ -122,21 +66,14 @@ namespace daf {
             Size num_cands = CS.GetCandidateSetSize(u);
             Size num_children = dag_.GetNumTreeChildren(u);
 
-            sample_candidates_[u].clear();
             sample_candidates_[u].resize(num_cands);
-            sample_candidate_weights_[u].clear();
             sample_candidate_weights_[u].resize(num_cands);
-            sample_dist_[u].clear();
             sample_dist_[u].resize(num_cands);
 
             std::vector<double> tmp_num_child(num_children);
             for (Size cs_idx = 0; cs_idx < num_cands; ++cs_idx) {
-
-                sample_candidates_[u][cs_idx].clear();
                 sample_candidates_[u][cs_idx].resize(num_children);
-                sample_candidate_weights_[u][cs_idx].clear();
                 sample_candidate_weights_[u][cs_idx].resize(num_children);
-                sample_dist_[u][cs_idx].clear();
                 sample_dist_[u][cs_idx].resize(num_children);
 
                 double num_ = 1.0;

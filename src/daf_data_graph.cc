@@ -157,6 +157,7 @@ void DataGraph::LoadAndProcessGraph() {
         std::sort(it.begin(), it.end());
     }
 
+    all_incident_edges_.resize(num_vertex_);
     incident_edges_.resize(num_vertex_);
     for (int i = 0; i < GetNumVertices(); i++) {
         incident_edges_[i].resize(GetNumLabels());
@@ -173,6 +174,7 @@ void DataGraph::LoadAndProcessGraph() {
             edge_info_.push_back(e);
             edge_exists[i][neighbor] = edge_id;
             incident_edges_[i][GetLabel(neighbor)].push_back(edge_id);
+            all_incident_edges_[i].push_back(edge_id);
             edge_id++;
         }
     }
@@ -185,13 +187,12 @@ void DataGraph::LoadAndProcessGraph() {
             });
         }
     }
-    trigvertex.resize(edge_id, tsl::hopscotch_map<int, std::pair<int, int>>());
     std::cout << "Incidence_ok! : ";
     if (is_sparse()) {
+        trigvertex.resize(edge_id, tsl::hopscotch_map<int, std::pair<int, int>>());
         std::cout << "Working on triangles...." << std::endl;
         std::vector<int> common_neighbor(GetNumVertices(), -1);
         int trig_count = 0;
-        for (int i = 0; i < GetNumVertices(); i++) {reverse_trigvertex[i] = std::vector<VertexPair>();}
         for (int i = 0; i < GetNumVertices(); i++) {
             for (int neighbor : adj_list[i]) {
                 for (int l = 0; l < GetNumLabels(); l++) {
@@ -217,6 +218,50 @@ void DataGraph::LoadAndProcessGraph() {
             }
         }
         std::cout << "Total # of trigs : " << trig_count << std::endl;
+
+        four_cycles.resize(edge_id);
+
+        double num_4c_cand = 0.0;
+        for (int i = 0; i < GetNumVertices(); i++) {
+            for (int cand_edge: all_incident_edges_[i]) {
+                int nxt_cand = opposite(cand_edge, i);
+                num_4c_cand += all_incident_edges_[i].size() * all_incident_edges_[nxt_cand].size();
+            }
+        }
+        if (num_4c_cand < 1e10) {
+            for (int i = 0; i < GetNumVertices(); i++) {
+                for (int cand_edge : all_incident_edges_[i]) {
+                    int nxt_cand = opposite(cand_edge, i);
+                    for (int third_edge_idx : all_incident_edges_[nxt_cand]) {
+                        int third_cand = opposite(third_edge_idx, nxt_cand);
+                        if (third_cand == i) continue;
+                        for (int opp_edge_idx : all_incident_edges_[third_cand]) {
+                            int fourth_cand = opposite(opp_edge_idx, third_cand);
+                            if (fourth_cand == nxt_cand) continue;
+                            int fourth_edge_idx = GetEdgeIndex(i, fourth_cand);
+                            if (fourth_edge_idx != -1) {
+                                CycleInfo c_info;
+                                c_info.opp_edge_idx = opp_edge_idx;
+                                c_info.third_edge_idx = third_edge_idx;
+                                c_info.fourth_edge_idx = fourth_edge_idx;
+                                c_info.third = third_cand;
+                                c_info.fourth = fourth_cand;
+                                four_cycles[cand_edge].push_back(c_info);
+                                num_four_cycles_indexed++;
+                            }
+                        }
+                    }
+                }
+                if (i % 30000 == 0) {
+                    fprintf(stderr, "%d / %d found %d quads\n",i,GetNumVertices(), num_four_cycles_indexed);
+                    fflush(stderr);
+                }
+            }
+            std::cout << "Total # of quads : " << num_four_cycles_indexed << std::endl;
+        }
+        else {
+            std::cout << "Too many possible 4-Cycles...abandon 4cycle preprocessing" << std::endl;
+        }
     }
     else {
         std::cout << "Graph is not sparse...abandon triangle preprocessing" << std::endl;

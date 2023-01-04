@@ -69,7 +69,19 @@ namespace daf {
 
         std::vector<EdgeInfo> edge_info_;
         std::vector<std::vector<std::vector<int>>> incident_edges_;
+        std::vector<std::vector<int>> all_incident_edges_;
         tsl::robin_map<VertexPair, Size> edge_index_map_;
+
+        struct CycleInfo {
+            CycleInfo() {}
+            int opp_edge_idx;
+            int third, fourth;
+            int third_edge_idx, fourth_edge_idx; // tex = 2->3, fex = 1->4
+        };
+
+        int num_four_cycles_indexed;
+        std::vector<std::vector<CycleInfo>> four_cycles;
+
 
     protected:
         std::unordered_map<Label, Label> transferred_label_map;
@@ -129,12 +141,12 @@ namespace daf {
 
 
     inline bool Graph::CheckEdgeExist(Vertex u, Vertex v) const {
-        return edge_exists[u].find(v) != edge_exists[u].end();
+        return edge_exists[u].find(v, v) != edge_exists[u].end();
     }
 
     inline int Graph::GetEdgeIndex(Vertex u, Vertex v) {
         functionCallCounter++;
-        auto it = edge_exists[u].find(v);
+        auto it = edge_exists[u].find(v, v);
         if (it == edge_exists[u].end()) return -1;
         return (*it).second;
     }

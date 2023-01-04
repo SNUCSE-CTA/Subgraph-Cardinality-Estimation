@@ -1,6 +1,7 @@
 #ifndef GLOBAL_TIMER_H_
 #define GLOBAL_TIMER_H_
 
+
 #include <chrono>
 #include <ctime>
 class Timer {

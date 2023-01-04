@@ -56,6 +56,7 @@ bool QueryGraph::ProcessLabeledGraph(const DataGraph &data) {
     }
 
 
+    all_incident_edges_.resize(num_vertex_);
     incident_edges_.resize(num_vertex_);
     for (int i = 0; i < GetNumVertices(); i++) {
         incident_edges_[i].resize(data.GetNumLabels());
@@ -73,6 +74,7 @@ bool QueryGraph::ProcessLabeledGraph(const DataGraph &data) {
             edge_info_.push_back(e);
             edge_exists[i][neighbor] = edge_id;
             incident_edges_[i][GetLabel(neighbor)].push_back(edge_id);
+            all_incident_edges_[i].push_back(edge_id);
             edge_id++;
         }
     }
@@ -95,17 +97,38 @@ bool QueryGraph::ProcessLabeledGraph(const DataGraph &data) {
         }
         num_three_cycles += triangles[e.index].size();
         edge_id = edge_index_map_[vp];
-        for (VertexPair other : all_edges) {
-            if (other.first == vp.first or other.second == vp.first or
-                other.first == vp.second or other.second == vp.second) continue;
-            if (CheckEdgeExist(vp.second, other.first) and CheckEdgeExist(other.second, vp.first)){
-                int opp_edge_id = edge_index_map_[other];
-                four_cycles[edge_id].push_back(opp_edge_id);
-                num_four_cycles++;
+    }
+    four_cycles.resize(edge_id);
+    for (int i = 0; i < GetNumVertices(); i++) {
+        for (int l = 0; l < GetNumLabels(); l++) {
+            for (int cand_edge : GetIncidentEdges(i, l)) {
+                int nxt_cand = opposite(cand_edge, i);
+                for (int l3 = 0; l3 < GetNumLabels(); l3++) {
+                    for (int third_edge_idx : GetIncidentEdges(nxt_cand, l3)) {
+                        int third_cand = opposite(third_edge_idx, nxt_cand);
+                        if (third_cand == i) continue;
+                        for (int l4 = 0; l4 < GetNumLabels(); l4++) {
+                            for (int opp_edge_idx : GetIncidentEdges(third_cand, l4)) {
+                                int fourth_cand = opposite(opp_edge_idx, third_cand);
+                                if (fourth_cand == nxt_cand) continue;
+                                int fourth_edge_idx = GetEdgeIndex(i, fourth_cand);
+                                if (fourth_edge_idx != -1) {
+                                    CycleInfo c_info;
+                                    c_info.opp_edge_idx = opp_edge_idx;
+                                    c_info.third_edge_idx = third_edge_idx;
+                                    c_info.fourth_edge_idx = fourth_edge_idx;
+                                    c_info.third = third_cand;
+                                    c_info.fourth = fourth_cand;
+                                    four_cycles[cand_edge].push_back(c_info);
+                                    num_four_cycles++;
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
-
     fprintf(stdout, "QUERY (V, E) = (%u, %u)\n",GetNumVertices(), GetNumEdges());
     fprintf(stdout, "NUM_QUERY_CYCLES = 3[%u] 4[%u]\n",num_three_cycles,num_four_cycles);
     fflush(stdout);

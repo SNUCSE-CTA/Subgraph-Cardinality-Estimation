@@ -65,9 +65,8 @@ public:
     inline Size GetInitCandSize(Label l, Size d) const;
 
     inline bool CheckAllNbrLabelExist(Vertex v, uint64_t *nbr_bitset) const;
-    std::vector<tsl::hopscotch_map<int, std::pair<int, int>>> trigvertex;
-    tsl::hopscotch_map<int, std::vector<VertexPair>> reverse_trigvertex;
 
+    std::vector<tsl::hopscotch_map<int, std::pair<int, int>>> trigvertex;
     bool is_sparse();
 
 private:

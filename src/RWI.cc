@@ -43,33 +43,37 @@ namespace daf {
     int local_cand_cnt = 0, local_cand_sum = 0;
     double RWI::SampleDAGVertex(std::vector<int> &dag_sample, int vertex_id) {
         // Vertex with minimum number of (1-edge) candidate
-        std::vector<int> num_seen(query_->GetNumVertices(), 0);
+        std::fill(num_seen.begin(), num_seen.end(), 0);
+        std::fill(best_neighbor.begin(), best_neighbor.end(), -1);
         int u = -1;
         for (int i = 0; i < query_->GetNumVertices(); i++) {
             if (dag_sample[i] != -1) continue;
+            int nbr_cnt = 1e9;
             for (int q_nbr : query_->adj_list[i]) {
                 if (dag_sample[q_nbr] != -1) {
                     num_seen[i]++;
+                    int num_nbr = CS->cs_adj_[{q_nbr, dag_sample[q_nbr]}][u].size();
+                    if (num_nbr < nbr_cnt) {
+                        nbr_cnt = num_nbr;
+                        best_neighbor[i] = q_nbr;
+                    }
                 }
             }
         }
         u = std::max_element(num_seen.begin(), num_seen.end()) - num_seen.begin();
-
+        int best_nbr = best_neighbor[u];
         local_candidate_set_[u].clear();
+        local_candidate_set_[u] = CS->cs_adj_[{best_nbr, dag_sample[best_nbr]}][u];
         for (int q_nbr : query_->adj_list[u]) {
+            if (q_nbr == best_nbr) continue;
             if (dag_sample[q_nbr] == -1) continue;
             VertexPair uPair = {q_nbr, dag_sample[q_nbr]};
-            if (local_candidate_set_[u].empty()) {
-                local_candidate_set_[u] = CS->cs_adj_[uPair][u];
-            }
-            else {
-                auto it1 = local_candidate_set_[u].begin();
-                while (it1 != local_candidate_set_[u].end()) {
-                    if (CS->cs_adj_[uPair][u].find(*it1) == CS->cs_adj_[uPair][u].end()) {
-                        it1 = local_candidate_set_[u].erase(it1);
-                    }
-                    else ++it1;
+            auto it1 = local_candidate_set_[u].begin();
+            while (it1 != local_candidate_set_[u].end()) {
+                if (CS->cs_adj_[uPair][u].find(*it1) == CS->cs_adj_[uPair][u].end()) {
+                    it1 = local_candidate_set_[u].erase(it1);
                 }
+                else ++it1;
             }
         }
         for (int seen_candidate : dag_sample) {
@@ -93,12 +97,7 @@ namespace daf {
         int num_branches = 1 + std::max(sample_space_size >> 5, std::min(sample_space_size, 4));
         num_branches = std::min(num_branches, sample_space_size);
         if (num_seen[u] == query_->adj_list[u].size()) num_branches = 1;
-//        local_cand_sum += num_branches;
-//        int num_branches = 1;
 
-//        fprintf(stderr, "local_cand_size of vertexid %d (%d) = %lu\n", vertex_id, u, local_candidate_set_[u].size());
-//        local_cand_sum += local_candidate_set_[u].size();
-        local_cand_cnt++;
         std::vector <int> branches = sample_without_replacement(local_candidate_set_[u],num_branches);
         int skipped = 0;
         for (int b = 0; b < num_branches; b++) {
@@ -113,6 +112,8 @@ namespace daf {
         dag_sample[u] = -1;
         return (sample_space_size * ht_s / (num_branches - skipped));
     }
+
+
 
 
     double RWI::IntersectionSamplingEstimate(Size num_samples) {

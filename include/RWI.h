@@ -19,10 +19,12 @@ namespace daf {
             query_ = &query;
             dag_ = &dag;
             local_candidate_set_.resize(query_->GetNumVertices());
+            num_seen.resize(query_->GetNumVertices(), 0);
+            best_neighbor.resize(query_->GetNumVertices(), -1);
         }
+        std::vector<int> num_seen, best_neighbor;
         std::vector<tsl::robin_set<Vertex>> local_candidate_set_;
         std::vector<int> root_candidates_;
-        double SampleCSDAGWithIntersection(std::vector<int> &sample);
         double IntersectionSamplingEstimate(Size num_samples);
         double SampleDAGVertex(std::vector<int> &dag_sample, int vertex_id);
     };
