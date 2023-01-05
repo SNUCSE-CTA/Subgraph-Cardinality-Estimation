@@ -69,6 +69,7 @@ bool QueryGraph::ProcessLabeledGraph(const DataGraph &data) {
             EdgeInfo e;
             e.edge_label = edge_labels_[{i, neighbor}];
             e.vsum = i + neighbor;
+            e.to = neighbor;
             e.index = edge_id;
             e.vp = {i, neighbor};
             edge_info_.push_back(e);
@@ -78,7 +79,10 @@ bool QueryGraph::ProcessLabeledGraph(const DataGraph &data) {
             edge_id++;
         }
     }
-
+    to_.resize(edge_id);
+    for (int i = 0; i < edge_id; i++) {
+        to_[i] = edge_info_[i].to;
+    }
     edge_num_neighbors.resize(edge_info_.size(), std::vector<int>(data.GetNumLabels(), 0));
     four_cycles.resize(edge_info_.size());
     triangles.resize(edge_id, std::vector<Vertex>());
@@ -86,6 +90,8 @@ bool QueryGraph::ProcessLabeledGraph(const DataGraph &data) {
 
     Size num_four_cycles = 0;
     Size num_three_cycles = 0;
+    trig_empty.resize(edge_info_.size());
+    quad_empty.resize(edge_info_.size());
     for (EdgeInfo e : edge_info_){
         VertexPair vp = e.vp;
         auto &va = adj_list[vp.first];
@@ -96,6 +102,7 @@ bool QueryGraph::ProcessLabeledGraph(const DataGraph &data) {
             trigvertex[e.index][vc] = {GetEdgeIndex(vp.first, vc), GetEdgeIndex(vp.second, vc)};
         }
         num_three_cycles += triangles[e.index].size();
+
         edge_id = edge_index_map_[vp];
     }
     four_cycles.resize(edge_id);
@@ -127,6 +134,14 @@ bool QueryGraph::ProcessLabeledGraph(const DataGraph &data) {
                     }
                 }
             }
+        }
+    }
+    for (int i = 0; i < edge_id; i++) {
+        if (triangles[i].empty()) {
+            trig_empty[i] = true;
+        }
+        if (four_cycles[i].empty()) {
+            quad_empty[i] = true;
         }
     }
     fprintf(stdout, "QUERY (V, E) = (%u, %u)\n",GetNumVertices(), GetNumEdges());

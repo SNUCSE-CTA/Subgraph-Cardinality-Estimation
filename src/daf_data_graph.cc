@@ -169,6 +169,7 @@ void DataGraph::LoadAndProcessGraph() {
             EdgeInfo e;
             e.edge_label = edge_labels_[{i, neighbor}];
             e.vsum = i + neighbor;
+            e.to = neighbor;
             e.index = edge_id;
             e.vp = {i, neighbor};
             edge_info_.push_back(e);
@@ -177,6 +178,10 @@ void DataGraph::LoadAndProcessGraph() {
             all_incident_edges_[i].push_back(edge_id);
             edge_id++;
         }
+    }
+    to_.resize(edge_id);
+    for (int i = 0; i < edge_id; i++) {
+        to_[i] = edge_info_[i].to;
     }
     for (int i = 0; i < GetNumVertices(); i++) {
         for (auto &vec : incident_edges_[i]) {

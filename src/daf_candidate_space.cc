@@ -79,7 +79,6 @@ namespace daf {
         csfilter_timer.Stop();
         fprintf(stdout, "CS prune time : %.02lf ms\n",csfilter_timer.GetTime());
 #endif
-        fflush(stdout);
         ConstructCS();
         return true;
     }
@@ -359,7 +358,7 @@ namespace daf {
         std::vector<int> &four_cycle_answers = four_cycle_memo[edgePair];
         for (int i = 0; i < query_.four_cycles[query_edge_id].size(); i++) {
             auto &q_info = query_.four_cycles[query_edge_id][i];
-            if (four_cycle_answers[i] >= data_.four_cycles[data_edge_id].size()) return false;
+//            if (four_cycle_answers[i] >= data_.four_cycles[data_edge_id].size()) return false;
             while (four_cycle_answers[i] < data_.four_cycles[data_edge_id].size()) {
                 auto &d_info = data_.four_cycles[data_edge_id][four_cycle_answers[i]];
                 bool validity = true;
@@ -391,14 +390,14 @@ namespace daf {
 
     bool CandidateSpace::EdgeSafety(int query_edge_id, int data_edge_id) {
         // triangle filter
-        if (is_data_sparse and !query_.triangles[query_edge_id].empty()) {
+        if (is_data_sparse and !query_.trig_empty[query_edge_id]) {
             if (!TriangleSafety(query_edge_id, data_edge_id)) return false;
         }
 #ifdef FOURCYCLE_SAFETY
 #ifdef TIME_CHECK
         steptimer_3.Start();
 #endif
-        if (is_data_sparse and !query_.four_cycles[query_edge_id].empty()) {
+        if (is_data_sparse and !query_.quad_empty[query_edge_id]) {
             if (!FourCycleSafety(query_edge_id, data_edge_id)) return false;
         }
 #ifdef TIME_CHECK

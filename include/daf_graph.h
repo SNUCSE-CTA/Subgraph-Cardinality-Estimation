@@ -16,7 +16,7 @@
 
 namespace daf {
     struct EdgeInfo {
-        int index, edge_label, vsum;
+        int index, edge_label, vsum, to;
         VertexPair vp;
         boost::dynamic_bitset<uint64_t> edge_candidacy_;
     };
@@ -62,6 +62,7 @@ namespace daf {
         tsl::robin_map<std::pair<Vertex, Vertex>, Label> edge_labels_;
         std::vector<tsl::robin_map<Vertex, int>> edge_exists;
         std::vector<VertexPair> all_edges;
+        std::vector<int> to_;
         Size num_label_;
 
 
@@ -158,7 +159,8 @@ namespace daf {
     }
 
     inline Vertex Graph::opposite(int edge_idx, Vertex from) {
-        return edge_info_[edge_idx].vsum - from;
+//        return edge_info_[edge_idx].vsum - from;
+        return to_[edge_idx];
     }
 
     inline double Graph::GetAvgDegree() const {
