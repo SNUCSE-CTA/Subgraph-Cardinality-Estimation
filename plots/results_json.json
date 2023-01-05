@@ -1,7 +1,0 @@
-{
-    "Human": {
-        "0TreeSamp" : "/Users/gratus/Desktop/Projects/SubgraphCounting/Subgraph-Cardinality-Estimation/dataset/approx1m/human_approx_result_2022-11-4-16-23.csv",
-        "1WanderJoin" : "/Users/gratus/Desktop/Projects/SubgraphCounting/gcare/dataset/WanderJoin-approx1m/yeast_approx_result_2022-11-9-16-24.csv",
-        "2JSUB" : "/Users/gratus/Desktop/Projects/SubgraphCounting/gcare/dataset/JS-approx1m/human_approx_result_2022-11-8-14-47.csv" 
-    }
-}

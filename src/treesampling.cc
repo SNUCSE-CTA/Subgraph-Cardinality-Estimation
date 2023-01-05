@@ -86,8 +86,8 @@ namespace daf {
                     Size uc_idx = dag_.GetChildIndex(uc);
 //                    fprintf(stderr, "Consider [%u %u(%u)] -> [%u %u(%u)]\n",u,cs_idx,v, uc, vc_idx, vc);
                     tmp_num_child[uc_idx] += num_trees_[uc][vc];
-                    sample_candidates_[u][cs_idx][uc_idx].push_back(vc_idx);
-                    sample_candidate_weights_[u][cs_idx][uc_idx].push_back(num_trees_[uc][vc]);
+                    sample_candidates_[u][cs_idx][uc_idx].emplace_back(vc_idx);
+                    sample_candidate_weights_[u][cs_idx][uc_idx].emplace_back(num_trees_[uc][vc]);
                 }
                 for (Size j = 0; j < num_children; ++j) {
                     num_ *= tmp_num_child[j];
@@ -108,8 +108,8 @@ namespace daf {
             Vertex root_candidate = CS.GetCandidate(root, root_candidate_idx);
             total_trees_ += num_trees_[root][root_candidate];
             if (num_trees_[root][root_candidate] > 0) {
-                root_candidates_.push_back(root_candidate_idx);
-                root_weight.push_back(num_trees_[root][root_candidate]);
+                root_candidates_.emplace_back(root_candidate_idx);
+                root_weight.emplace_back(num_trees_[root][root_candidate]);
             }
         }
 //        fprintf(stderr, "\n");
@@ -194,7 +194,7 @@ namespace daf {
                 reject_nontree++;
             }
             double rhohat = (success * 1.0 / t);
-            if (success >= 1000) break;
+            if (success >= 500) break;
         }
         fprintf(stdout, "#NUM_SAMPLES : %u\n", t);
         fprintf(stdout, "#NUM_SUCCESS : %u\n", success);
@@ -202,29 +202,10 @@ namespace daf {
         return {total_trees_ * (success * 1.0 / t), success};
     }
 
-
-    void inplace_set_intersection(std::set<int> &st1, std::set<int> &st2) {
-        std::set<int>::iterator it1 = st1.begin();
-        std::set<int>::iterator it2 = st2.begin();
-        while ( (it1 != st1.end()) && (it2 != st2.end()) ) {
-            if (*it1 < *it2) {
-                st1.erase(it1++);
-            }
-            else if (*it2 < *it1) {
-                ++it2;
-            }
-            else {
-                ++it1;
-                ++it2;
-            }
-        }
-        st1.erase(it1, st1.end());
-    }
-
     double TreeSampling::EstimateEmbeddings(Size num_samples) {
         Timer sampletimer_uni, sampletimer_inter;
         sampletimer_uni.Start();
-        std::pair<double, int> uniformResult = UniformSamplingEstimate(num_samples);
+        std::pair<double, int> uniformResult = UniformSamplingEstimate(num_samples/10);
         sampletimer_uni.Stop();
         std::cout << "Uniform Sampling time: " << std::fixed << sampletimer_uni.GetTime() << " ms\n";
         if (uniformResult.second == 0) {

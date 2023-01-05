@@ -33,7 +33,8 @@ namespace daf {
         inline Vertex GetCandidate(Vertex u, Size v_idx) const;
 
         tsl::robin_map<VertexPair, std::vector<VertexPair>> cs_edge_list_;
-        tsl::robin_map<VertexPair, tsl::robin_map<Vertex, tsl::robin_set<Vertex>>> cs_adj_;
+        tsl::robin_map<VertexPair, tsl::robin_map<Vertex, tsl::robin_set<Vertex>>> tmp_adj_;
+        tsl::robin_map<VertexPair, tsl::robin_map<Vertex, std::vector<Vertex>>> cs_adj_;
 
 
         void printCS();
@@ -42,6 +43,7 @@ namespace daf {
         DataGraph &data_;
         QueryGraph &query_;
         DAG &dag_;
+
 
         struct online_cycle_information {
             online_cycle_information() {

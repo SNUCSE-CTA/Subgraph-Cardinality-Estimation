@@ -6,12 +6,13 @@
 #define BIPARTITE_SAFETY
 //#define NEIGHBOR_SAFETY
 #define FOURCYCLE_SAFETY
-#define TIME_CHECK
+//#define TIME_CHECK
 
 namespace daf {
     Size global_iteration_count = 0;
     Timer steptimer_1, steptimer_2, steptimer_3, steptimer_4;
-    Size counters[1000];
+    uint64_t counters[1000];
+    bool is_data_sparse = true;
     CandidateSpace::CandidateSpace(DataGraph &data, QueryGraph &query,
                                    DAG &dag)
             : data_(data), query_(query), dag_(dag) {
@@ -27,6 +28,8 @@ namespace daf {
                 new Vertex[data_.GetNumVertices() * query_.GetNumVertices()];
 
         num_visited_candidates = 0;
+
+        is_data_sparse = data_.is_sparse();
 
         std::fill(num_visit_cs_, num_visit_cs_ + data_.GetNumVertices(), 0);
         num_cs_edges_ = 0;
@@ -123,7 +126,7 @@ namespace daf {
                     data_.GetCoreNum(cand) >= query_.GetCoreNum(cur) &&
                     data_.GetMaxNbrDegree(cand) >= max_nbr_degree &&
                     data_.CheckAllNbrLabelExist(cand, nbr_label_bitset)) {
-                    candidate_set_[cur].push_back(cand);
+                    candidate_set_[cur].emplace_back(cand);
                     BitsetCS[cur].set(cand);
                 }
             }
@@ -357,8 +360,6 @@ namespace daf {
         for (int i = 0; i < query_.four_cycles[query_edge_id].size(); i++) {
             auto &q_info = query_.four_cycles[query_edge_id][i];
             if (four_cycle_answers[i] >= data_.four_cycles[data_edge_id].size()) return false;
-
-
             while (four_cycle_answers[i] < data_.four_cycles[data_edge_id].size()) {
                 auto &d_info = data_.four_cycles[data_edge_id][four_cycle_answers[i]];
                 bool validity = true;
@@ -390,13 +391,19 @@ namespace daf {
 
     bool CandidateSpace::EdgeSafety(int query_edge_id, int data_edge_id) {
         // triangle filter
-        if (data_.is_sparse() and !query_.triangles[query_edge_id].empty()) {
+        if (is_data_sparse and !query_.triangles[query_edge_id].empty()) {
             if (!TriangleSafety(query_edge_id, data_edge_id)) return false;
         }
 #ifdef FOURCYCLE_SAFETY
-        if (data_.is_sparse() and !query_.four_cycles[query_edge_id].empty()) {
+#ifdef TIME_CHECK
+        steptimer_3.Start();
+#endif
+        if (is_data_sparse and !query_.four_cycles[query_edge_id].empty()) {
             if (!FourCycleSafety(query_edge_id, data_edge_id)) return false;
         }
+#ifdef TIME_CHECK
+        steptimer_3.Stop();
+#endif
 #endif
         return true;
     }
@@ -480,10 +487,11 @@ namespace daf {
         std::vector <int> CandidateIndex(data_.GetNumVertices());
         for (Size i = 0; i < query_.GetNumVertices(); ++i) {
             for (Size idx = 0; idx < GetCandidateSetSize(i); idx++) {
-                cs_adj_[{i, candidate_set_[i][idx]}] = (tsl::robin_map<Vertex, tsl::robin_set<Vertex>>());
-                for (int q_nbr : query_.adj_list[i]) {
-                    cs_adj_[{i, candidate_set_[i][idx]}][q_nbr] = tsl::robin_set<Vertex>();
-                }
+                tmp_adj_[{i, candidate_set_[i][idx]}] = (tsl::robin_map<Vertex, tsl::robin_set<Vertex>>());
+                cs_adj_[{i, candidate_set_[i][idx]}] = (tsl::robin_map<Vertex, std::vector<Vertex>>());
+//                for (int q_nbr : query_.adj_list[i]) {
+//                    tmp_adj_[{i, candidate_set_[i][idx]}][q_nbr] = tsl::robin_set<Vertex>();
+//                }
             }
         }
         Size CandidateSpaceSize = 0, CandidateEdges = 0;
@@ -513,27 +521,36 @@ namespace daf {
                             Size v_idx = CandidateIndex[v];
                             VertexPair u_pair = {u, v_idx};
                             VertexPair uc_pair = {u_adj, v_adj_idx};
-                            cs_edge_list_[u_pair].push_back(uc_pair);
+                            cs_edge_list_[u_pair].emplace_back(uc_pair);
 //                            cs_edge_list_[uc_pair].insert(u_pair);
 
                             /* Add CS_ADJ_List; */
-                            cs_adj_[{u, v}][u_adj].insert(v_adj);
+                            tmp_adj_[{u, v}][u_adj].insert(v_adj);
 //                            cs_adj_[{u_adj, v_adj}][u].insert(v);
                         }
                     }
                 }
             }
         }
+        for (auto &uPair : tmp_adj_) {
+            for (auto &ucPair : uPair.second) {
+                for (auto vc : ucPair.second) {
+                    cs_adj_[uPair.first][ucPair.first].emplace_back(vc);
+                }
+                std::sort(cs_adj_[uPair.first][ucPair.first].begin(), cs_adj_[uPair.first][ucPair.first].end());
+            }
+        }
+
         CandidateEdges /= 2;
         csbuild_timer.Stop();
 
-        fprintf(stdout, "Counter 15 = %d, 16 = %d, 17 = %d\n",counters[15], counters[16], counters[17]);
+        fprintf(stdout, "Counter 15 = %llu, 16 = %llu, 17 = %llu\n",counters[15], counters[16], counters[17]);
         std::cout << "GetEdgeIndex Calls : " << functionCallCounter << std::endl;
         std::cout << "StepTimer 1 (BP-Safety) " << steptimer_1.GetTime() << "ms" << std::endl;
         std::cout << "StepTimer 2 (Triangle-Safety) " << steptimer_2.GetTime() << "ms" << std::endl;
         std::cout << "StepTimer 3 (4Cycle-Safety) " << steptimer_3.GetTime() << "ms" << std::endl;
         std::cout << "StepTimer 4 (4Cycle-Safety-Bypass) " << steptimer_4.GetTime() << "ms" << std::endl;
-        fprintf(stdout, "Total 4-cycle checks = %u, Passed %u\n",counters[0], counters[1]);
+        fprintf(stdout, "Total 4-cycle checks = %llu, Passed %llu\n",counters[0], counters[1]);
         fprintf(stdout, "CS build time : %.02lf ms\n",csbuild_timer.GetTime());
         fprintf(stderr, "CS-SZ : %u %u\n", CandidateSpaceSize, CandidateEdges);
         fprintf(stdout, "#CandidateSetSize : %u\n", CandidateSpaceSize);
@@ -561,7 +578,7 @@ namespace daf {
             if (data_.GetCoreNum(cand) >= query_.GetCoreNum(root) &&
                 data_.CheckAllNbrLabelExist(cand, nbr_label_bitset) &&
                 data_.GetMaxNbrDegree(cand) >= max_nbr_degree) {
-                candidate_set_[root].push_back(cand);
+                candidate_set_[root].emplace_back(cand);
                 BitsetCS[root].set(cand);
             }
         }

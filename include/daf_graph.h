@@ -81,6 +81,7 @@ namespace daf {
 
         int num_four_cycles_indexed;
         std::vector<std::vector<CycleInfo>> four_cycles;
+        std::vector<int> degrees;
 
 
     protected:
@@ -128,7 +129,7 @@ namespace daf {
     inline Size Graph::GetEndOffset(Vertex v) const { return start_off_[v + 1]; }
 
     inline Size Graph::GetDegree(Vertex v) const {
-        return start_off_[v + 1] - start_off_[v];
+        return degrees[v];
     }
 
     inline Size Graph::GetCoreNum(Vertex v) const { return core_num_[v]; }

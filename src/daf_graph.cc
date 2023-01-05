@@ -41,6 +41,7 @@ void Graph::LoadRoughGraph(std::vector<std::vector<Vertex>> *graph) {
     num_vertex_ = v;
     num_edge_ = e;
     edge_exists.resize(num_vertex_);
+    degrees.resize(num_vertex_);
     label_ = new Label[v];
     graph->resize(v);
 
@@ -70,6 +71,7 @@ void Graph::LoadRoughGraph(std::vector<std::vector<Vertex>> *graph) {
             (*graph)[v2].push_back(v1);
             all_edges.push_back({v1, v2});
             all_edges.push_back({v2, v1});
+            degrees[v1]++; degrees[v2]++;
             Label el;
             if (tok.empty()) el = 0;
             else {
