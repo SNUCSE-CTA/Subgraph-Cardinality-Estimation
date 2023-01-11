@@ -11,8 +11,10 @@
 namespace daf {
     Size global_iteration_count = 0;
     Timer steptimer_1, steptimer_2, steptimer_3, steptimer_4;
-    uint64_t counters[1000];
     bool is_data_sparse = true;
+
+    BipartiteMaximumMatching BPSolver, BPTSolver;
+
     CandidateSpace::CandidateSpace(DataGraph &data, QueryGraph &query,
                                    DAG &dag)
             : data_(data), query_(query), dag_(dag) {
@@ -33,10 +35,13 @@ namespace daf {
 
         std::fill(num_visit_cs_, num_visit_cs_ + data_.GetNumVertices(), 0);
         num_cs_edges_ = 0;
-        for (EdgeInfo &e : data_.edge_info_) {
+        for (EdgeInfo &e : query_.edge_info_) {
             e.edge_candidacy_.clear();
-            e.edge_candidacy_.resize(query_.GetNumEdges()*2, true);
+            e.edge_candidacy_.resize(data_.edge_info_.size(), true);
         }
+
+        BPSolver.global_initialize(query_.GetMaxDegree(), data_.GetMaxDegree());
+        BPTSolver.global_initialize(query_.GetMaxDegree(), data_.max_num_trigs);
     }
 
     CandidateSpace::~CandidateSpace() {
@@ -50,9 +55,7 @@ namespace daf {
         dag_.BuildDAG(-1);
         if (!FilterByTopDownWithInit()) return false;
 
-#ifdef TIME_CHECK
         Timer csfilter_timer; csfilter_timer.Start();
-#endif
         auto CandSize = [this]() {
             int totalCandidateSetSize = 0;
             for (int i = 0; i < query_.GetNumVertices(); i++) {
@@ -75,10 +78,8 @@ namespace daf {
             fprintf(stdout, "Iter %d : Cand_size = %d\n",global_iteration_count, cand_sz);
         }
 
-#ifdef TIME_CHECK
         csfilter_timer.Stop();
         fprintf(stdout, "CS prune time : %.02lf ms\n",csfilter_timer.GetTime());
-#endif
         ConstructCS();
         return true;
     }
@@ -146,19 +147,12 @@ namespace daf {
 
     bool CandidateSpace::BipartiteSafety(Vertex cur, Vertex cand) {
 #ifdef BIPARTITE_SAFETY
-//        if (data_.GetDegree(cand) >= 5 * query_.GetDegree(cur)) {
-//            return true;
-//        }
+
 #ifdef TIME_CHECK
         steptimer_1.Start();
 #endif
-        std::vector <int> label_edge_offset(data_.GetNumLabels()+1);
-        for (int i = 0; i < data_.GetNumLabels(); i++) {
-            label_edge_offset[i+1] = data_.GetIncidentEdges(cand, i).size();
-            if (i > 0) label_edge_offset[i] += label_edge_offset[i-1];
-        }
-        BipartiteMaximumMatching BP(query_.GetDegree(cur), data_.GetDegree(cand));
-        BP.clear_adj();
+        BPSolver.reset();
+        auto &it = data_.label_edge_offset[cand];
         for (int i = 0; i < query_.adj_list[cur].size(); i++) {
             Vertex uc = query_.adj_list[cur][i];
             int query_edge_index = query_.GetEdgeIndex(cur, uc);
@@ -167,12 +161,12 @@ namespace daf {
             for (int edge_id : data_.GetIncidentEdges(cand, query_next_label)) {
                 Vertex vc = data_.opposite(edge_id, cand);
                 if (BitsetCS[uc][vc] and EdgeCandidacy(query_edge_index, edge_id)) {
-                    BP.add_edge(i, j + label_edge_offset[query_next_label]);
+                    BPSolver.add_edge(i, j + it[query_next_label]);
                 }
                 j++;
             }
         }
-        bool ok = (BP.solve() == (query_.GetDegree(cur)));
+        bool ok = (BPSolver.solve() == (query_.GetDegree(cur)));
 #ifdef TIME_CHECK
         steptimer_1.Stop();
 #endif
@@ -222,8 +216,10 @@ namespace daf {
     }
 
     inline bool CandidateSpace::EdgeCandidacy(int query_edge_id, int data_edge_id) {
-        if (query_edge_id == -1 || data_edge_id == -1) return false;
-        return data_.edge_info_[data_edge_id].edge_candidacy_[query_edge_id];
+        if (query_edge_id == -1 || data_edge_id == -1) {
+            return false;
+        }
+        return query_.edge_info_[query_edge_id].edge_candidacy_[data_edge_id];
     }
 
     bool CandidateSpace::TriangleSafety(int query_edge_id, int data_edge_id) {
@@ -233,7 +229,7 @@ namespace daf {
         int cand, nxt_cand; std::tie(cand, nxt_cand) = data_.edge_info_[data_edge_id].vp;
         int cur, nxt; std::tie(cur, nxt) = query_.edge_info_[query_edge_id].vp;
         auto &common_neighbors = data_.trigvertex[data_edge_id];
-        BipartiteMaximumMatching BP(query_.triangles[query_edge_id].size(), common_neighbors.size());
+        BPTSolver.reset();
         int triangle_index = -1;
         for (auto qtv: query_.trigvertex[query_edge_id]) {
             triangle_index++;
@@ -245,7 +241,7 @@ namespace daf {
                 if (!EdgeCandidacy(qtv.second.first, tv.second.first)) continue;
                 if (!EdgeCandidacy(qtv.second.second, tv.second.second)) continue;
                 found = true;
-                BP.add_edge(triangle_index, tv_idx);
+                BPTSolver.add_edge(triangle_index, tv_idx);
             }
             if (!found) {
 #ifdef TIME_CHECK
@@ -254,7 +250,7 @@ namespace daf {
                 return false;
             }
         }
-        bool ok = (BP.solve() == query_.triangles[query_edge_id].size());
+        bool ok = (BPTSolver.solve() == query_.triangles[query_edge_id].size());
 #ifdef TIME_CHECK
         steptimer_2.Stop();
 #endif
@@ -342,43 +338,29 @@ namespace daf {
         }
         return true;
     }
+
     bool CandidateSpace::FourCycleSafety(int query_edge_id, int data_edge_id) {
         if (data_.num_four_cycles_indexed == 0) return FourCycleSafetyOnline(query_edge_id, data_edge_id);
 #ifdef TIME_CHECK
         steptimer_3.Start();
 #endif
-        int cand, nxt_cand; std::tie(cand, nxt_cand) = data_.edge_info_[data_edge_id].vp;
-        int cur, nxt; std::tie(cur, nxt) = query_.edge_info_[query_edge_id].vp;
-        std::pair<int, int> edgePair = {query_edge_id, data_edge_id};
-
-        if (four_cycle_memo.find(edgePair) == four_cycle_memo.end()) {
-            four_cycle_memo[edgePair] = std::vector<int>(query_.four_cycles[query_edge_id].size());
-        }
-
-        std::vector<int> &four_cycle_answers = four_cycle_memo[edgePair];
+        if (query_.four_cycles[query_edge_id].size() > data_.four_cycles[data_edge_id].size()) return false;
         for (int i = 0; i < query_.four_cycles[query_edge_id].size(); i++) {
             auto &q_info = query_.four_cycles[query_edge_id][i];
-//            if (four_cycle_answers[i] >= data_.four_cycles[data_edge_id].size()) return false;
-            while (four_cycle_answers[i] < data_.four_cycles[data_edge_id].size()) {
-                auto &d_info = data_.four_cycles[data_edge_id][four_cycle_answers[i]];
+            for (auto &d_info : data_.four_cycles[data_edge_id]) {
                 bool validity = true;
                 if (validity) validity &= BitsetCS[q_info.third][d_info.third];
                 if (validity) validity &= BitsetCS[q_info.fourth][d_info.fourth];
                 if (validity) validity &= EdgeCandidacy(q_info.third_edge_idx, d_info.third_edge_idx);
                 if (validity) validity &= EdgeCandidacy(q_info.fourth_edge_idx, d_info.fourth_edge_idx);
                 if (validity) validity &= EdgeCandidacy(q_info.opp_edge_idx, d_info.opp_edge_idx);
+                if (validity and q_info.one_three_idx != -1) validity &= EdgeCandidacy(q_info.one_three_idx, d_info.one_three_idx);
+                if (validity and q_info.two_four_idx != -1) validity &= EdgeCandidacy(q_info.two_four_idx, d_info.two_four_idx);
                 if (validity) {
                     goto nxt_cycle;
                 }
-                four_cycle_answers[i]++;
             }
-
-            if (four_cycle_answers[i] >= data_.four_cycles[data_edge_id].size()) {
-#ifdef TIME_CHECK
-                steptimer_3.Stop();
-#endif
-                return false;
-            }
+            return false;
             nxt_cycle:
 #ifdef TIME_CHECK
             steptimer_3.Stop();
@@ -430,11 +412,12 @@ namespace daf {
                     for (int data_edge_idx : data_.GetIncidentEdges(nxt_cand, cur_label)) {
                         Vertex cand = data_.opposite(data_edge_idx, nxt_cand);
                         if (data_.GetDegree(cand) < query_.GetDegree(cur)) break;
-                        if (data_.edge_info_[data_edge_idx].edge_candidacy_[query_edge_idx]==0) {
+                        if (query_.edge_info_[query_edge_idx].edge_candidacy_[data_edge_idx]==0) {
                             continue;
                         }
                         if (!EdgeSafety(query_edge_idx, data_edge_idx)) {
-                            data_.edge_info_[data_edge_idx].edge_candidacy_[query_edge_idx] = false;
+                            query_.edge_info_[query_edge_idx].edge_candidacy_[data_edge_idx] = false;
+                            query_.edge_info_[query_.opposite_edge[query_edge_idx]].edge_candidacy_[data_.opposite_edge[data_edge_idx]] = false;
                             continue;
                         }
                         if (num_visit_cs_[cand] == num_nxt) {
@@ -486,11 +469,7 @@ namespace daf {
         std::vector <int> CandidateIndex(data_.GetNumVertices());
         for (Size i = 0; i < query_.GetNumVertices(); ++i) {
             for (Size idx = 0; idx < GetCandidateSetSize(i); idx++) {
-                tmp_adj_[{i, candidate_set_[i][idx]}] = (tsl::robin_map<Vertex, tsl::robin_set<Vertex>>());
                 cs_adj_[{i, candidate_set_[i][idx]}] = (tsl::robin_map<Vertex, std::vector<Vertex>>());
-//                for (int q_nbr : query_.adj_list[i]) {
-//                    tmp_adj_[{i, candidate_set_[i][idx]}][q_nbr] = tsl::robin_set<Vertex>();
-//                }
             }
         }
         Size CandidateSpaceSize = 0, CandidateEdges = 0;
@@ -524,19 +503,17 @@ namespace daf {
 //                            cs_edge_list_[uc_pair].insert(u_pair);
 
                             /* Add CS_ADJ_List; */
-                            tmp_adj_[{u, v}][u_adj].insert(v_adj);
-//                            cs_adj_[{u_adj, v_adj}][u].insert(v);
+                            cs_adj_[{u, v}][u_adj].emplace_back(v_adj);
                         }
                     }
                 }
             }
         }
-        for (auto &uPair : tmp_adj_) {
+        for (auto &uPair : cs_adj_) {
             for (auto &ucPair : uPair.second) {
-                for (auto vc : ucPair.second) {
-                    cs_adj_[uPair.first][ucPair.first].emplace_back(vc);
-                }
-                std::sort(cs_adj_[uPair.first][ucPair.first].begin(), cs_adj_[uPair.first][ucPair.first].end());
+                auto &it = cs_adj_[uPair.first][ucPair.first];
+                std::sort(it.begin(), it.end());
+                it.erase(std::unique(it.begin(), it.end()), it.end());
             }
         }
 
@@ -545,7 +522,7 @@ namespace daf {
 
         fprintf(stdout, "Counter 15 = %llu, 16 = %llu, 17 = %llu\n",counters[15], counters[16], counters[17]);
         std::cout << "GetEdgeIndex Calls : " << functionCallCounter << std::endl;
-        std::cout << "StepTimer 1 (BP-Safety) " << steptimer_1.GetTime() << "ms" << std::endl;
+        std::cout << "StepTimer 1 (Bipartite-Safety) " << steptimer_1.GetTime() << "ms" << std::endl;
         std::cout << "StepTimer 2 (Triangle-Safety) " << steptimer_2.GetTime() << "ms" << std::endl;
         std::cout << "StepTimer 3 (4Cycle-Safety) " << steptimer_3.GetTime() << "ms" << std::endl;
         std::cout << "StepTimer 4 (4Cycle-Safety-Bypass) " << steptimer_4.GetTime() << "ms" << std::endl;

@@ -198,7 +198,7 @@ namespace daf {
         }
         fprintf(stdout, "#NUM_SAMPLES : %u\n", t);
         fprintf(stdout, "#NUM_SUCCESS : %u\n", success);
-        fprintf(stderr,"Rejected by Injective : %d, Rejected by Edge : %d\n", reject_homo, reject_nontree);
+//        fprintf(stderr,"Rejected by Injective : %d, Rejected by Edge : %d\n", reject_homo, reject_nontree);
         return {total_trees_ * (success * 1.0 / t), success};
     }
 

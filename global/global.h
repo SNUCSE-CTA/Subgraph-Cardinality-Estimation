@@ -1,6 +1,7 @@
 #ifndef GLOBAL_GLOBAL_H_
 #define GLOBAL_GLOBAL_H_
 
+#include <queue>
 #include <cassert>
 #include <cstdint>
 #include <limits>
@@ -20,6 +21,7 @@ using Vertex = int32_t;
 using Label = int32_t;
 using QueryDegree = int8_t;
 using VertexPair = std::pair<Vertex, Vertex>;
+static uint64_t counters[1000];
 
 namespace daf {
     static std::random_device rd;
@@ -66,32 +68,52 @@ struct UnionFind {
 };
 
 struct BipartiteMaximumMatching {
-    std::vector<Vertex> left, right;
-    std::vector<bool> used;
-    std::vector<std::vector<Vertex>> adj;
-    BipartiteMaximumMatching(Size l = 0, Size r = 0){
-        left.resize(l, -1);
-        right.resize(r, -1);
-        adj.resize(l);
-        used.resize(l);
+    int *left, *right;
+    int left_len, right_len;
+    bool *used;
+    int **adj, *adj_size;
+
+    void global_initialize(int max_left, int max_right) {
+//        fprintf(stderr, "BPSolver init to %d by %d\n",max_left,max_right);
+        left = new int[max_left];
+        right = new int[max_right];
+        left_len = max_left;
+        right_len = max_right;
+        used = new bool[max_left];
+        adj = new int*[max_left];
+        for (int i = 0; i < max_left; i++) {
+            adj[i] = new int[max_right];
+        }
+        adj_size = new int[max_left];
     }
-    void clear_adj() {
-        adj.clear();
-        std::fill(left.begin(), left.end(), -1);
-        std::fill(right.begin(), right.end(), -1);
-        adj.resize(left.size());
+    ~BipartiteMaximumMatching() {
+        delete[] left;
+        delete[] right;
+        delete[] used;
+        for (int i = 0; i < left_len; i++) {
+            delete[] adj[i];
+        }
+        delete[] adj;
+        delete[] adj_size;
     }
-    void add_edge(size_t u, size_t v) {
-        adj[u].push_back(v);
+    void reset() const {
+        std::memset(left, -1, sizeof(int) * left_len);
+        std::memset(right, -1, sizeof(int) * right_len);
+        std::memset(used, false, sizeof(bool) * left_len);
+        std::memset(adj_size, 0, sizeof(int) * left_len);
+    }
+    void add_edge(int u, int v) {
+        adj[u][adj_size[u]++] = v;
     }
     // Time: O( V(V+E) )
-    size_t solve() {
-        std::fill(left.begin(), left.end(), -1);
-        size_t ans = 0;
-        for (Vertex u = 0; u < left.size(); u++) {
+    int solve() {
+        std::memset(left, -1, sizeof(int) * left_len);
+        int ans = 0;
+        for (Vertex u = 0; u < left_len; u++) {
             if (left[u] == -1) {
-                std::fill(used.begin(), used.end(), false);
-                if (dfs(u)) ans++;
+                std::memset(used, false, sizeof(bool) * left_len);
+                if (dfs(u))
+                    ans++;
             }
         }
         return ans;
@@ -99,7 +121,8 @@ struct BipartiteMaximumMatching {
 
     bool dfs(Vertex r) {
         used[r] = true;
-        for (Vertex c : adj[r]) {
+        for (int i = 0; i < adj_size[r]; i++) {
+            Vertex c = adj[r][i];
             Vertex k = right[c];
             if (k == -1 or !used[k] and dfs(k)) {
                 left[r] = c;
@@ -110,4 +133,76 @@ struct BipartiteMaximumMatching {
         return false;
     }
 };
+//
+//struct BipartiteMaximumMatching {
+//    int n_left, n_right, flow = 0;
+//    std::vector<std::vector<int>> g;
+//    std::vector<int> match_from_left, match_from_right;
+//
+//    BipartiteMaximumMatching(int _n_left, int _n_right)
+//            : n_left(_n_left),
+//              n_right(_n_right),
+//              g(_n_left),
+//              match_from_left(_n_left, -1),
+//              match_from_right(_n_right, -1),
+//              dist(_n_left) {}
+//
+//    void add_edge(int u, int v) { g[u].push_back(v); }
+//
+//    std::vector<int> dist;
+//
+//    void bfs() {
+//        std::queue<int> q;
+//        for (int u = 0; u < n_left; ++u) {
+//            if (!~match_from_left[u])
+//                q.push(u), dist[u] = 0;
+//            else
+//                dist[u] = -1;
+//        }
+//        while (!q.empty()) {
+//            int u = q.front();
+//            q.pop();
+//            for (auto v : g[u])
+//                if (~match_from_right[v] && !~dist[match_from_right[v]]) {
+//                    dist[match_from_right[v]] = dist[u] + 1;
+//                    q.push(match_from_right[v]);
+//                }
+//        }
+//    }
+//
+//    bool dfs(int u) {
+//        for (auto v : g[u])
+//            if (!~match_from_right[v]) {
+//                match_from_left[u] = v, match_from_right[v] = u;
+//                return true;
+//            }
+//        for (auto v : g[u])
+//            if (dist[match_from_right[v]] == dist[u] + 1 &&
+//                dfs(match_from_right[v])) {
+//                match_from_left[u] = v, match_from_right[v] = u;
+//                return true;
+//            }
+//        return false;
+//    }
+//
+//    int solve() {
+//        while (true) {
+//            bfs();
+//            int augment = 0;
+//            for (int u = 0; u < n_left; ++u)
+//                if (!~match_from_left[u]) augment += dfs(u);
+//            if (!augment) break;
+//            flow += augment;
+//        }
+//        return flow;
+//    }
+//
+//    std::vector<std::pair<int, int>> get_edges() {
+//        std::vector<std::pair<int, int>> ans;
+//        for (int u = 0; u < n_left; ++u)
+//            if (match_from_left[u] != -1)
+//                ans.emplace_back(u, match_from_left[u]);
+//        return ans;
+//    }
+//};
 #endif  // GLOBAL_GLOBAL_H_

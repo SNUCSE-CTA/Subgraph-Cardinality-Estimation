@@ -5,9 +5,10 @@ FIND_PACKAGE( Boost )
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++20 -g")
 include_directories(${Boost_INCLUDE_DIRS})
 include_directories(${PROJECT_SOURCE_DIR})
+link_directories(/opt/homebrew/opt/gperftools/lib)
 
 file(GLOB SOURCES src/*.cc)
 add_subdirectory(main)
 
-#LD_PRELOAD=/usr/local/lib/libprofiler.so CPUPROFILE=SubgraphSampler.prof CPUPROFILESIGNAL=12 ./main/SubgraphSampler
+#LD_PRELOAD=/usr/local/lib/libprofiler.dylib CPUPROFILE=SubgraphSampler.prof CPUPROFILESIGNAL=12 ./main/SubgraphSampler
 #pprof --lines --pdf ./main/SubgraphSampler SubgraphSampler.prof > SubgraphSampler.pdf

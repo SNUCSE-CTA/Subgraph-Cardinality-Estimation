@@ -33,7 +33,6 @@ namespace daf {
         inline Vertex GetCandidate(Vertex u, Size v_idx) const;
 
         tsl::robin_map<VertexPair, std::vector<VertexPair>> cs_edge_list_;
-        tsl::robin_map<VertexPair, tsl::robin_map<Vertex, tsl::robin_set<Vertex>>> tmp_adj_;
         tsl::robin_map<VertexPair, tsl::robin_map<Vertex, std::vector<Vertex>>> cs_adj_;
 
 
@@ -59,7 +58,8 @@ namespace daf {
         };
         tsl::hopscotch_map<VertexPair, tsl::hopscotch_map<int, std::pair<int, int>>> trigvertex;
         tsl::hopscotch_map<int, std::vector<VertexPair>> reverse_trigvertex;
-        tsl::robin_map<std::pair<int, int>, std::vector<int>> four_cycle_memo;
+        tsl::robin_map<std::pair<int, int>, int*> four_cycle_memo;
+//        tsl::robin_map<std::pair<int, int>, std::vector<int>> four_cycle_memo;
         tsl::robin_map<std::pair<int, int>, std::vector<online_cycle_information>> four_cycle_memo_old;
 
         std::vector<boost::dynamic_bitset<uint64_t>> BitsetCS;

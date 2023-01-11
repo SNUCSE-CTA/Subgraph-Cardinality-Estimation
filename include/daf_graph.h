@@ -63,8 +63,11 @@ namespace daf {
         std::vector<tsl::robin_map<Vertex, int>> edge_exists;
         std::vector<VertexPair> all_edges;
         std::vector<int> to_;
+        std::vector<int> opposite_edge;
         Size num_label_;
 
+        std::vector<std::vector<int>> num_labeled_triangles_;
+        std::vector<std::vector<int>> edge_num_neighbors;
 
         inline std::vector<int>& GetIncidentEdges(Vertex v, Label l);
 
@@ -78,6 +81,7 @@ namespace daf {
             int opp_edge_idx;
             int third, fourth;
             int third_edge_idx, fourth_edge_idx; // tex = 2->3, fex = 1->4
+            int two_four_idx, one_three_idx;
         };
 
         int num_four_cycles_indexed;
@@ -113,6 +117,8 @@ namespace daf {
         int GetEdgeIndex(Vertex u, Vertex v);
 
         Vertex opposite(int edge_idx, Vertex from);
+
+        int GetNumLabeledTriangles(int edge_idx, int label) const;
     };
 
     inline Size Graph::GetNumLabels() const { return num_label_; }
@@ -166,6 +172,10 @@ namespace daf {
     inline double Graph::GetAvgDegree() const {
         return GetNumEdges() * 1.0 / GetNumVertices();
     }
+
+    inline int Graph::GetNumLabeledTriangles(int edge_idx, int label) const {
+        return num_labeled_triangles_[edge_idx][label];
+    };
 
 }
 

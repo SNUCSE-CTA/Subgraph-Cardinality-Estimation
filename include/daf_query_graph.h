@@ -55,7 +55,6 @@ public:
     boost::dynamic_bitset<uint64_t> trig_empty, quad_empty;
     std::vector<tsl::hopscotch_map<int, std::pair<int, int>>> trigvertex;
 
-    std::vector<std::vector<int>> edge_num_neighbors;
 
     std::vector<Vertex> GetVerticesByLabel(Size l) const {
         return verticesbyLabel[l];

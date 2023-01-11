@@ -179,6 +179,13 @@ void DataGraph::LoadAndProcessGraph() {
             edge_id++;
         }
     }
+    opposite_edge.resize(edge_id);
+    for (int i = 0; i < GetNumLabels(); i++) {
+        for (auto &eid : all_incident_edges_[i]) {
+            int to = edge_info_[eid].to;
+            opposite_edge[eid] = edge_exists[to][i];
+        }
+    }
     to_.resize(edge_id);
     for (int i = 0; i < edge_id; i++) {
         to_[i] = edge_info_[i].to;
@@ -192,9 +199,23 @@ void DataGraph::LoadAndProcessGraph() {
             });
         }
     }
+
+    label_edge_offset.resize(GetNumVertices(), std::vector<int>(GetNumLabels()+1));
+    for (int cand = 0; cand < GetNumVertices(); cand++) {
+        for (int i = 0; i < GetNumLabels(); i++) {
+            label_edge_offset[cand][i+1] = GetIncidentEdges(cand, i).size();
+            if (i > 0) label_edge_offset[cand][i] += label_edge_offset[cand][i-1];
+        }
+    }
+
+
+
+
     std::cout << "Incidence_ok! : ";
     if (is_sparse()) {
+        num_labeled_triangles_.resize(edge_id, std::vector<int>(GetNumLabels()));
         trigvertex.resize(edge_id, tsl::hopscotch_map<int, std::pair<int, int>>());
+        edge_num_neighbors.resize(edge_info_.size(), std::vector<int>(GetNumLabels(), 0));
         std::cout << "Working on triangles...." << std::endl;
         std::vector<int> common_neighbor(GetNumVertices(), -1);
         int trig_count = 0;
@@ -209,6 +230,8 @@ void DataGraph::LoadAndProcessGraph() {
                         int snd_neighbor = opposite(snd_incident, neighbor);
                         if (common_neighbor[snd_neighbor] != -1) {
                             trigvertex[edge_exists[i][neighbor]][snd_neighbor] = {common_neighbor[snd_neighbor], snd_incident};
+                            num_labeled_triangles_[edge_exists[i][neighbor]][GetLabel(snd_neighbor)]++;
+                            edge_num_neighbors[edge_exists[i][neighbor]][GetLabel(snd_neighbor)]--;
                             trig_count++;
                         }
                     }
@@ -222,6 +245,16 @@ void DataGraph::LoadAndProcessGraph() {
                 fprintf(stderr, "%d / %d found %d trigs\n",i,GetNumVertices(), trig_count);
             }
         }
+
+        for (EdgeInfo e : edge_info_) {
+            VertexPair vp = e.vp;
+            for (int i = 0; i < GetNumLabels(); i++) {
+                edge_num_neighbors[e.index][i] += GetIncidentEdges(vp.first, i).size();
+                edge_num_neighbors[e.index][i] += GetIncidentEdges(vp.second, i).size();
+            }
+            max_num_trigs = std::max(max_num_trigs, (int)trigvertex[e.index].size());
+        }
+
         std::cout << "Total # of trigs : " << trig_count << std::endl;
 
         four_cycles.resize(edge_id);
@@ -251,6 +284,10 @@ void DataGraph::LoadAndProcessGraph() {
                                 c_info.fourth_edge_idx = fourth_edge_idx;
                                 c_info.third = third_cand;
                                 c_info.fourth = fourth_cand;
+
+                                c_info.one_three_idx = GetEdgeIndex(i, third_cand);
+                                c_info.two_four_idx = GetEdgeIndex(nxt_cand, fourth_cand);
+
                                 four_cycles[cand_edge].push_back(c_info);
                                 num_four_cycles_indexed++;
                             }

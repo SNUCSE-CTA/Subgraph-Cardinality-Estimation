@@ -127,16 +127,25 @@ namespace daf {
         num_branches = std::min(num_branches, sample_space_size);
         if (num_seen[u] == query_->adj_list[u].size()) num_branches = 1;
 
-        std::shuffle(local_candidates_[u].begin(), local_candidates_[u].end(), gen);
         int skipped = 0;
-        for (int b = 0; b < num_branches; b++) {
-            if (rwi_sample_count <= 0) {
-                skipped = num_branches - b;
-                break;
-            }
-            dag_sample[u] = local_candidates_[u][b];
+        if (num_branches == 1) {
+            dag_sample[u] = local_candidates_[u][gen()%local_candidates_[u].size()];
             auto nxt_result = SampleDAGVertex(dag_sample, vertex_id+1);
             ht_s += nxt_result;
+        }
+        else {
+            if (num_branches < local_candidates_[u].size()) {
+                std::shuffle(local_candidates_[u].begin(), local_candidates_[u].end(), gen);
+            }
+            for (int b = 0; b < num_branches; b++) {
+                if (rwi_sample_count <= 0) {
+                    skipped = num_branches - b;
+                    break;
+                }
+                dag_sample[u] = local_candidates_[u][b];
+                auto nxt_result = SampleDAGVertex(dag_sample, vertex_id+1);
+                ht_s += nxt_result;
+            }
         }
         dag_sample[u] = -1;
         return (sample_space_size * ht_s / (num_branches - skipped));

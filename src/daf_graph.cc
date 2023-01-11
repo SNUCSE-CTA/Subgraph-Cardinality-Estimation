@@ -81,7 +81,7 @@ void Graph::LoadRoughGraph(std::vector<std::vector<Vertex>> *graph) {
         }
     }
 
-    fprintf(stderr, "Graph Read finish : Read %u vertices and %u edges\n",num_vertex_,num_edge_);
+//    fprintf(stderr, "Graph Read finish : Read %u vertices and %u edges\n",num_vertex_,num_edge_);
     fin_.close();
 }
 
