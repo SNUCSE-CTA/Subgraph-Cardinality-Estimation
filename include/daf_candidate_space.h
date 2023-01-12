@@ -15,7 +15,6 @@
 #include "include/daf_query_graph.h"
 
 namespace daf {
-
     class CandidateSpace {
     public:
         CandidateSpace(DataGraph &data, QueryGraph &query, DAG &dag);
@@ -62,8 +61,10 @@ namespace daf {
 //        tsl::robin_map<std::pair<int, int>, std::vector<int>> four_cycle_memo;
         tsl::robin_map<std::pair<int, int>, std::vector<online_cycle_information>> four_cycle_memo_old;
 
-        std::vector<boost::dynamic_bitset<uint64_t>> BitsetCS;
+//        bool **BitsetCS;
         boost::dynamic_bitset<uint64_t> tmpBitset;
+        std::vector<boost::dynamic_bitset<uint64_t>> BitsetCS;
+
         bool **BitsetEdgeCS;
 
         QueryDegree *num_visit_cs_;
@@ -113,7 +114,6 @@ namespace daf {
     inline Vertex CandidateSpace::GetCandidate(Vertex u, Size v_idx) const {
         return candidate_set_[u][v_idx];
     }
-
 }  // namespace daf
 
 #endif  // CANDIDATE_SPACE_H_

@@ -9,7 +9,6 @@
 //#define TIME_CHECK
 
 namespace daf {
-    static int num_max_query_edge = 50;
     Size global_iteration_count = 0;
     Timer steptimer_1, steptimer_2, steptimer_3, steptimer_4;
     bool is_data_sparse = true;
@@ -19,13 +18,18 @@ namespace daf {
     CandidateSpace::CandidateSpace(DataGraph &data, QueryGraph &query,
                                    DAG &dag)
             : data_(data), query_(query), dag_(dag) {
+        BitsetCS.resize(query.GetNumVertices());
+        for (int i = 0; i < query.GetNumVertices(); i++) {
+            BitsetCS[i].resize(data.GetNumVertices());
+        }
 
-        BitsetCS.resize(query_.GetNumVertices());
+        BitsetEdgeCS = new bool*[query.edge_info_.size()];
+        for (int i = 0; i < query.edge_info_.size(); i++) {
+            BitsetEdgeCS[i] = new bool[data.edge_info_.size()];
+            memset(BitsetEdgeCS[i], true, data.edge_info_.size());
+        }
         candidate_set_.resize(query_.GetNumVertices());
 
-        for (Vertex u = 0; u < query_.GetNumVertices(); ++u) {
-            BitsetCS[u].resize(data_.GetNumVertices());
-        }
         num_visit_cs_ = new QueryDegree[data_.GetNumVertices()];
         visited_candidates_ =
                 new Vertex[data_.GetNumVertices() * query_.GetNumVertices()];
@@ -34,12 +38,8 @@ namespace daf {
 
         is_data_sparse = data_.is_sparse();
 
+
         std::fill(num_visit_cs_, num_visit_cs_ + data_.GetNumVertices(), 0);
-        num_cs_edges_ = 0;
-        for (EdgeInfo &e : query_.edge_info_) {
-            e.edge_candidacy_.clear();
-            e.edge_candidacy_.resize(data_.edge_info_.size(), true);
-        }
 
         BPSolver.global_initialize(query_.GetMaxDegree(), data_.GetMaxDegree());
         BPTSolver.global_initialize(query_.GetMaxDegree(), data_.max_num_trigs);
@@ -47,7 +47,9 @@ namespace daf {
     }
 
     CandidateSpace::~CandidateSpace() {
-        for (int i = 0; i < )
+        for (int i = 0; i < query_.edge_info_.size(); i++) {
+            delete[] BitsetEdgeCS[i];
+        }
         delete[] BitsetEdgeCS;
         delete[] num_visit_cs_;
         delete[] visited_candidates_;
@@ -131,7 +133,7 @@ namespace daf {
                     data_.GetMaxNbrDegree(cand) >= max_nbr_degree &&
                     data_.CheckAllNbrLabelExist(cand, nbr_label_bitset)) {
                     candidate_set_[cur].emplace_back(cand);
-                    BitsetCS[cur].set(cand);
+                    BitsetCS[cur][cand] = true;
                 }
             }
             if (candidate_set_[cur].empty()) {
@@ -223,7 +225,7 @@ namespace daf {
         if (query_edge_id == -1 || data_edge_id == -1) {
             return false;
         }
-        return query_.edge_info_[query_edge_id].edge_candidacy_[data_edge_id];
+        return BitsetEdgeCS[query_edge_id][data_edge_id];
     }
 
     bool CandidateSpace::TriangleSafety(int query_edge_id, int data_edge_id) {
@@ -423,12 +425,12 @@ namespace daf {
                     for (int data_edge_idx : data_.GetIncidentEdges(nxt_cand, cur_label)) {
                         Vertex cand = data_.opposite(data_edge_idx, nxt_cand);
                         if (data_.GetDegree(cand) < query_.GetDegree(cur)) break;
-                        if (query_.edge_info_[query_edge_idx].edge_candidacy_[data_edge_idx]==0) {
+                        if (BitsetEdgeCS[query_edge_idx][data_edge_idx] == false) {
                             continue;
                         }
                         if (!EdgeSafety(query_edge_idx, data_edge_idx)) {
-                            query_.edge_info_[query_edge_idx].edge_candidacy_[data_edge_idx] = false;
-                            query_.edge_info_[query_.opposite_edge[query_edge_idx]].edge_candidacy_[data_.opposite_edge[data_edge_idx]] = false;
+                            BitsetEdgeCS[query_edge_idx][data_edge_idx] = false;
+                            BitsetEdgeCS[query_.opposite_edge[query_edge_idx]][data_.opposite_edge[data_edge_idx]] = false;
                             continue;
                         }
                         if (num_visit_cs_[cand] == num_nxt) {
@@ -455,7 +457,7 @@ namespace daf {
                     candidate_set_[cur][i] = candidate_set_[cur].back();
                     candidate_set_[cur].pop_back();
                     --i;
-                    BitsetCS[cur].reset(cand);
+                    BitsetCS[cur][cand] = false;
                     pruned = true;
                 }
             }
@@ -566,7 +568,7 @@ namespace daf {
                 data_.CheckAllNbrLabelExist(cand, nbr_label_bitset) &&
                 data_.GetMaxNbrDegree(cand) >= max_nbr_degree) {
                 candidate_set_[root].emplace_back(cand);
-                BitsetCS[root].set(cand);
+                BitsetCS[root][cand] = true;
             }
         }
 
