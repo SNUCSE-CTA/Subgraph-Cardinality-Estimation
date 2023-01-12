@@ -6,65 +6,79 @@ namespace daf {
         return weighted_distr(gen);
     }
 
-    TreeSampling::TreeSampling(DataGraph &data, QueryGraph &query,
-                               DAG &dag)
-            : data_(data), query_(query), dag_(dag), CS(data, query, dag) {
-        Timer treeSamplingTimer; treeSamplingTimer.Start();
-        CS.BuildCS();
-        std::cout << "CSTIME " << treeSamplingTimer.Peek() << " ms\n";
+    TreeSampling::TreeSampling(DataGraph *data) {
+        data_ = data;
+        CS = new CandidateSpace(data);
+        seen_.resize(data_->GetNumVertices());
+        RWI_ = RWI();
+    }
+
+    void TreeSampling::RegisterQuery(QueryGraph *query, DAG *dag) {
+        query_ = query;
+        dag_ = dag;
+        Timer CSTimer; CSTimer.Start();
+        CS->BuildCS(query, dag);
+        std::cout << "CSTIME " << CSTimer.Peek() << " ms\n";
+        std::fill(seen_.begin(), seen_.end(), 0);
+
+        sample_dist_.clear();
+        num_trees_.clear();
+        sample_candidates_.clear();
+        sample_candidate_weights_.clear();
+        sample_dist_.clear();
+        root_candidates_.clear();
+
         Timer querytree_timer; querytree_timer.Start();
         BuildQueryTree();
         querytree_timer.Stop();
         std::cout << "Query Tree Building Time: " << querytree_timer.Peek() << " ms\n";
-        seen_.resize(data_.GetNumVertices(), 0);
-        RWI_ = RWI();
-        RWI_.init(data, query, dag, CS);
+        RWI_.init(data_, query, dag, CS);
     }
 
     TreeSampling::~TreeSampling() {}
 
     void TreeSampling::BuildQueryTree() {
         std::vector<std::pair<double, std::pair<Vertex, Vertex>>> edges;
-        for (Size i = 0; i < query_.GetNumVertices(); ++i) {
-            for (Size nidx = query_.GetStartOffset(i); nidx < query_.GetEndOffset(i); ++nidx) {
-                Vertex q_neighbor = query_.GetNeighbor(nidx);
+        for (Size i = 0; i < query_->GetNumVertices(); ++i) {
+            for (Size nidx = query_->GetStartOffset(i); nidx < query_->GetEndOffset(i); ++nidx) {
+                Vertex q_neighbor = query_->GetNeighbor(nidx);
                 if (i > q_neighbor) continue;
                 double ij_cs_edge = 0;
-                for (Size cs_idx = 0; cs_idx < CS.GetCandidateSetSize(i); ++cs_idx) {
-                    int v = CS.GetCandidate(i, cs_idx);
-                    Size num_cs_neighbor = CS.cs_adj_[{i, v}][q_neighbor].size();
+                for (Size cs_idx = 0; cs_idx < CS->GetCandidateSetSize(i); ++cs_idx) {
+                    int v = CS->GetCandidate(i, cs_idx);
+                    Size num_cs_neighbor = CS->cs_adj_[{i, v}][q_neighbor].size();
                     ij_cs_edge += num_cs_neighbor;
                 }
-                ij_cs_edge /= ((1 + CS.GetCandidateSetSize(i)) * (1 + CS.GetCandidateSetSize(q_neighbor)));
+                ij_cs_edge /= ((1 + CS->GetCandidateSetSize(i)) * (1 + CS->GetCandidateSetSize(q_neighbor)));
                 if (ij_cs_edge > 0) {
                     edges.push_back({ij_cs_edge * 1.0,{i, q_neighbor}});
                 }
             }
         }
         std::sort(edges.begin(), edges.end());
-        UnionFind uf(query_.GetNumVertices());
+        UnionFind uf(query_->GetNumVertices());
         for (auto e : edges) {
             auto [u, v] = e.second;
             if (uf.unite(u, v)) {
-                dag_.AddTreeEdge(u, v);
+                dag_->AddTreeEdge(u, v);
             }
         }
-        dag_.BuildTree();
+        dag_->BuildTree();
         double num_tree_homo = ConstructTreeDP();
         fprintf(stderr, "NUM_TREE = %.04lE\n",num_tree_homo);
     }
 
     double TreeSampling::ConstructTreeDP() {
-        num_trees_.resize(query_.GetNumVertices());
+        num_trees_.resize(query_->GetNumVertices());
         for (auto &it : num_trees_) it.clear();
-        sample_candidates_.resize(query_.GetNumVertices());
-        sample_candidate_weights_.resize(query_.GetNumVertices());
-        sample_dist_.resize(query_.GetNumVertices());
-        for (Size i = 0; i < query_.GetNumVertices(); ++i) {
-            Vertex u = dag_.GetVertexOrderedByTree(query_.GetNumVertices() - i - 1);
-//            fprintf(stderr, "u = %u, parent = %u\n",u, dag_.GetTreeParent(u, 0));
-            Size num_cands = CS.GetCandidateSetSize(u);
-            Size num_children = dag_.GetNumTreeChildren(u);
+        sample_candidates_.resize(query_->GetNumVertices());
+        sample_candidate_weights_.resize(query_->GetNumVertices());
+        sample_dist_.resize(query_->GetNumVertices());
+        for (Size i = 0; i < query_->GetNumVertices(); ++i) {
+            Vertex u = dag_->GetVertexOrderedByTree(query_->GetNumVertices() - i - 1);
+//            fprintf(stderr, "u = %u, parent = %u\n",u, dag_->GetTreeParent(u, 0));
+            Size num_cands = CS->GetCandidateSetSize(u);
+            Size num_children = dag_->GetNumTreeChildren(u);
 
             sample_candidates_[u].resize(num_cands);
             sample_candidate_weights_[u].resize(num_cands);
@@ -77,13 +91,13 @@ namespace daf {
                 sample_dist_[u][cs_idx].resize(num_children);
 
                 double num_ = 1.0;
-                Vertex v = CS.GetCandidate(u, cs_idx);
+                Vertex v = CS->GetCandidate(u, cs_idx);
                 VertexPair u_pair = {u, cs_idx};
                 std::fill(tmp_num_child.begin(), tmp_num_child.end(), 0.0);
-                for (auto &[uc, vc_idx] : CS.cs_edge_list_[u_pair]){
-                    if (dag_.GetTreeParent(uc, 0) != u) continue;
-                    Vertex vc = CS.GetCandidate(uc, vc_idx);
-                    Size uc_idx = dag_.GetChildIndex(uc);
+                for (auto &[uc, vc_idx] : CS->cs_edge_list_[u_pair]){
+                    if (dag_->GetTreeParent(uc, 0) != u) continue;
+                    Vertex vc = CS->GetCandidate(uc, vc_idx);
+                    Size uc_idx = dag_->GetChildIndex(uc);
 //                    fprintf(stderr, "Consider [%u %u(%u)] -> [%u %u(%u)]\n",u,cs_idx,v, uc, vc_idx, vc);
                     tmp_num_child[uc_idx] += num_trees_[uc][vc];
                     sample_candidates_[u][cs_idx][uc_idx].emplace_back(vc_idx);
@@ -101,11 +115,11 @@ namespace daf {
 
         total_trees_ = 0.0;
         root_candidates_.clear();
-        Vertex root = dag_.GetRoot();
-        Size root_candidate_size = CS.GetCandidateSetSize(root);
+        Vertex root = dag_->GetRoot();
+        Size root_candidate_size = CS->GetCandidateSetSize(root);
         std::vector <double> root_weight;
         for (int root_candidate_idx = 0; root_candidate_idx < root_candidate_size; ++root_candidate_idx) {
-            Vertex root_candidate = CS.GetCandidate(root, root_candidate_idx);
+            Vertex root_candidate = CS->GetCandidate(root, root_candidate_idx);
             total_trees_ += num_trees_[root][root_candidate];
             if (num_trees_[root][root_candidate] > 0) {
                 root_candidates_.emplace_back(root_candidate_idx);
@@ -118,24 +132,24 @@ namespace daf {
     }
 
     double TreeSampling::SampleCSTree(std::vector<int> &tree_sample) {
-        tree_sample[dag_.GetRoot()] = root_candidates_[sample(sample_root_dist_)];
+        tree_sample[dag_->GetRoot()] = root_candidates_[sample(sample_root_dist_)];
 
-//        fprintf(stderr, "DAGRoot = %u, sampled %uth\n", dag_.GetRoot(), tree_sample[dag_.GetRoot()]);
-        for (Size i = 0; i < query_.GetNumVertices(); ++i) {
-            Vertex u = dag_.GetVertexOrderedByTree(i);
+//        fprintf(stderr, "DAGRoot = %u, sampled %uth\n", dag_->GetRoot(), tree_sample[dag_->GetRoot()]);
+        for (Size i = 0; i < query_->GetNumVertices(); ++i) {
+            Vertex u = dag_->GetVertexOrderedByTree(i);
             Vertex v_idx = tree_sample[u];
-            for (Size uc_idx = 0; uc_idx < dag_.GetNumTreeChildren(u); ++uc_idx) {
-                Vertex uc = dag_.GetTreeChild(u, uc_idx);
+            for (Size uc_idx = 0; uc_idx < dag_->GetNumTreeChildren(u); ++uc_idx) {
+                Vertex uc = dag_->GetTreeChild(u, uc_idx);
                 Size vc_idx = sample(sample_dist_[u][v_idx][uc_idx]);
 //                fprintf(stderr, "vertex %u-%u, child %u => Sample %u...",u,v,uc,vc);
                 tree_sample[uc] = sample_candidates_[u][v_idx][uc_idx][vc_idx];
             }
         }
-        for (Size i = 0; i < query_.GetNumVertices(); ++i) {
-            tree_sample[i] = CS.GetCandidate(i, tree_sample[i]);
+        for (Size i = 0; i < query_->GetNumVertices(); ++i) {
+            tree_sample[i] = CS->GetCandidate(i, tree_sample[i]);
         }
 //        fprintf(stderr, "SAMPLE : ");
-//        for (Size i = 0; i < query_.GetNumVertices(); ++i) {
+//        for (Size i = 0; i < query_->GetNumVertices(); ++i) {
 //            fprintf(stderr, " %u(%u)", tree_sample[i], i);
 //        }
 //        fprintf(stderr, "\n");
@@ -144,7 +158,7 @@ namespace daf {
 
     int TreeSampling::CheckSample(std::vector<int> &sample) {
         int result = 1;
-        for (Size i = 0; i < query_.GetNumVertices(); ++i) {
+        for (Size i = 0; i < query_->GetNumVertices(); ++i) {
             if (sample[i] >= 0) {
                 Vertex cand = sample[i];
                 if (seen_[cand]) {
@@ -156,9 +170,9 @@ namespace daf {
             }
         }
 
-        for (auto &[i, j] : query_.all_edges) {
+        for (auto &[i, j] : query_->all_edges) {
             if (sample[i] < 0 || sample[j] < 0) continue;
-            if (!data_.CheckEdgeExist(sample[i], sample[j])) {
+            if (!data_->CheckEdgeExist(sample[i], sample[j])) {
                 result = 0;
 //                fprintf(stderr, "There should be an edge between %u and %u but there isnt in %u %u\n",
 //                        i,j,sample[i],sample[j]);
@@ -166,7 +180,7 @@ namespace daf {
             }
         }
         done:
-        for (Size i = 0; i < query_.GetNumVertices(); ++i) {
+        for (Size i = 0; i < query_->GetNumVertices(); ++i) {
             if (sample[i] >= 0)
                 seen_[sample[i]] = false;
         }
@@ -174,7 +188,7 @@ namespace daf {
     }
 
     std::pair<double, int> TreeSampling::UniformSamplingEstimate(Size num_samples) {
-        std::vector<int> tree_sample(query_.GetNumVertices(), -1);
+        std::vector<int> tree_sample(query_->GetNumVertices(), -1);
         Size success = 0, t = 0;
         double ht_est = 0.0;
         int reject_homo = 0, reject_nontree = 0;
@@ -216,7 +230,7 @@ namespace daf {
             return intersectionResult;
         }
         return uniformResult.first;
-//        CS.printCS();
+//        CS->printCS();
 //        double intersectionResult = RWI_.IntersectionSamplingEstimate(1000000);
 //        return intersectionResult;
     }

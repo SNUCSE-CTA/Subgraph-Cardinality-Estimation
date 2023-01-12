@@ -65,6 +65,7 @@ namespace daf {
         }
     }
 
+
     double RWI::SampleDAGVertex(std::vector<int> &dag_sample, int vertex_id) {
         // Vertex with minimum number of (1-edge) candidate
         std::fill(num_seen.begin(), num_seen.end(), 0);

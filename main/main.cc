@@ -27,7 +27,12 @@ int num_samples = 1000000;
 int q_cnt = 0;
 double cumulative_time_ = 0;
 std::unordered_map<std::string, double> true_cnt;
-void run_treesample (DataGraph &data, QueryGraph &query) {
+
+
+TreeSampling *TSSolver;
+RWI *RWISolver;
+
+void estimate(DataGraph &data, QueryGraph &query) {
     GlobalTimer.Start();
     std::cout << "Query Graph: " << query_name << "\n";
     fflush(stdout);
@@ -48,18 +53,18 @@ void run_treesample (DataGraph &data, QueryGraph &query) {
     total_timer.Stop();
 
     total_timer.Start();
-    daf::TreeSampling treesampling(data, query, dag);
+    TSSolver->RegisterQuery(&query, &dag);
     total_timer.Stop();
     std::cout << "Upto Sampling Prep time: " << std::fixed << GlobalTimer.Peek() << " ms\n";
 
     for (auto u = 0; u < query.GetNumVertices(); ++u) {
-        if (treesampling.CS.GetCandidateSetSize(u) == 0) {
+        if (TSSolver->CS->GetCandidateSetSize(u) == 0) {
             std::cout << "Total time: " << total_timer.GetTime() << " ms\n";
             exit(1);
         }
     }
     sample_timer.Start();
-    double est = treesampling.EstimateEmbeddings(num_samples);
+    double est = TSSolver->EstimateEmbeddings(num_samples);
     sample_timer.Stop();
 
     total_timer.Add(sample_timer);
@@ -67,7 +72,7 @@ void run_treesample (DataGraph &data, QueryGraph &query) {
     std::cout << "#TRUE : " << std::scientific << std::setprecision(4) << true_cnt[query_name] << std::endl;
     std::cout << "#Matches(Approx) : " << std::scientific << std::setprecision(4) << est << std::endl;
     std::cerr << "#Matches(Approx) : " << std::scientific << std::setprecision(4) << est << std::endl;
-    std::cout << "#Tree : " << std::scientific << std::setprecision(4) << treesampling.total_trees_ << std::endl;
+    std::cout << "#Tree : " << std::scientific << std::setprecision(4) << TSSolver->total_trees_ << std::endl;
     std::cout << "Query Finished" << std::endl;
 
 
@@ -127,6 +132,7 @@ int main(int argc, char *argv[]) {
     std::cout << "Loading data graph..." << std::endl;
     DataGraph data(data_name);
     data.LoadAndProcessGraph();
+    TSSolver = new TreeSampling(&data);
 
 //    while (query_names.size() >= 100) {
 //        query_names.pop_front();
@@ -136,6 +142,6 @@ int main(int argc, char *argv[]) {
         q_cnt++;
         query_name = qname;
         QueryGraph query(qname);
-        run_treesample(data, query);
+        estimate(data, query);
     }
 }

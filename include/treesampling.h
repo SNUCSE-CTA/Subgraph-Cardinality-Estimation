@@ -15,7 +15,7 @@
 namespace daf {
 class TreeSampling {
 public:
-    TreeSampling(DataGraph &data, QueryGraph &query, DAG &dag);
+    TreeSampling(DataGraph *data);
     ~TreeSampling();
     TreeSampling &operator=(const TreeSampling &) = delete;
     TreeSampling(const TreeSampling &) = delete;
@@ -24,10 +24,10 @@ public:
     double EstimateEmbeddings(Size num_samples);
 
     double total_trees_ = 0;
-    CandidateSpace CS;
-    DataGraph &data_;
-    QueryGraph &query_;
-    DAG &dag_;
+    CandidateSpace *CS;
+    DataGraph *data_;
+    QueryGraph *query_;
+    DAG *dag_;
     RWI RWI_;
 
     std::vector<bool> seen_, query_seen_;
@@ -45,6 +45,7 @@ public:
     void BuildQueryTree();
 
     int CheckSample(std::vector<int> &sample);
+    void RegisterQuery(QueryGraph *query, DAG *dag);
 
 };
 

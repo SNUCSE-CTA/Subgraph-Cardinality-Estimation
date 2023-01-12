@@ -17,6 +17,7 @@
 namespace daf {
     class CandidateSpace {
     public:
+        CandidateSpace(DataGraph *data);
         CandidateSpace(DataGraph &data, QueryGraph &query, DAG &dag);
 
         ~CandidateSpace();
@@ -24,8 +25,6 @@ namespace daf {
         CandidateSpace &operator=(const CandidateSpace &) = delete;
 
         CandidateSpace(const CandidateSpace &) = delete;
-
-        bool BuildCS();
 
         inline Size GetCandidateSetSize(Vertex u) const;
 
@@ -36,11 +35,12 @@ namespace daf {
 
 
         void printCS();
+        bool BuildCS(QueryGraph *query, DAG *dag);
         std::vector<std::vector <Vertex>> candidate_set_;
     private:
-        DataGraph &data_;
-        QueryGraph &query_;
-        DAG &dag_;
+        DataGraph *data_;
+        QueryGraph *query_;
+        DAG *dag_;
 
 
         struct online_cycle_information {
@@ -61,9 +61,9 @@ namespace daf {
 //        tsl::robin_map<std::pair<int, int>, std::vector<int>> four_cycle_memo;
         tsl::robin_map<std::pair<int, int>, std::vector<online_cycle_information>> four_cycle_memo_old;
 
-//        bool **BitsetCS;
+        bool **BitsetCS;
         boost::dynamic_bitset<uint64_t> tmpBitset;
-        std::vector<boost::dynamic_bitset<uint64_t>> BitsetCS;
+//        std::vector<boost::dynamic_bitset<uint64_t>> BitsetCS;
 
         bool **BitsetEdgeCS;
 
@@ -105,6 +105,7 @@ namespace daf {
 
         bool FourCycleSafety(int query_edge_id, int data_edge_id);
         bool FourCycleSafetyOnline(int query_edge_id, int data_edge_id);
+
     };
 
     inline Size CandidateSpace::GetCandidateSetSize(Vertex u) const {

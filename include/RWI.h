@@ -14,11 +14,11 @@ namespace daf {
 
         RWI(){};
         ~RWI(){};
-        void init (DataGraph &data, QueryGraph &query, DAG &dag, CandidateSpace &cs) {
-            CS = &cs;
-            data_ = &data;
-            query_ = &query;
-            dag_ = &dag;
+        void init (DataGraph *data, QueryGraph *query, DAG *dag, CandidateSpace *cs) {
+            CS = cs;
+            data_ = data;
+            query_ = query;
+            dag_ = dag;
             local_candidates_.resize(query_->GetNumVertices());
             local_candidate_set_.resize(query_->GetNumVertices());
             num_seen.resize(query_->GetNumVertices(), 0);
