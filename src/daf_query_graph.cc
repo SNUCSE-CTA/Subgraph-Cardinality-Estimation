@@ -151,6 +151,7 @@ bool QueryGraph::ProcessLabeledGraph(const DataGraph &data) {
                     }
                 }
             }
+            max_four_cycles_indexed = std::max(max_four_cycles_indexed, (int)four_cycles[cand_edge].size());
         }
     }
     for (int i = 0; i < edge_id; i++) {

@@ -64,6 +64,7 @@ namespace daf {
 
         std::vector<boost::dynamic_bitset<uint64_t>> BitsetCS;
         boost::dynamic_bitset<uint64_t> tmpBitset;
+        bool **BitsetEdgeCS;
 
         QueryDegree *num_visit_cs_;
         Vertex *visited_candidates_;

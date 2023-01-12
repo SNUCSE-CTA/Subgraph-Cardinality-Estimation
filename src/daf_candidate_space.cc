@@ -9,6 +9,7 @@
 //#define TIME_CHECK
 
 namespace daf {
+    static int num_max_query_edge = 50;
     Size global_iteration_count = 0;
     Timer steptimer_1, steptimer_2, steptimer_3, steptimer_4;
     bool is_data_sparse = true;
@@ -42,9 +43,12 @@ namespace daf {
 
         BPSolver.global_initialize(query_.GetMaxDegree(), data_.GetMaxDegree());
         BPTSolver.global_initialize(query_.GetMaxDegree(), data_.max_num_trigs);
+//        BPQsolver.global_initialize(query_.max_four_cycles_indexed, data_.max_four_cycles_indexed);
     }
 
     CandidateSpace::~CandidateSpace() {
+        for (int i = 0; i < )
+        delete[] BitsetEdgeCS;
         delete[] num_visit_cs_;
         delete[] visited_candidates_;
     }
@@ -345,9 +349,13 @@ namespace daf {
         steptimer_3.Start();
 #endif
         if (query_.four_cycles[query_edge_id].size() > data_.four_cycles[data_edge_id].size()) return false;
+//        BPQsolver.reset();
         for (int i = 0; i < query_.four_cycles[query_edge_id].size(); i++) {
             auto &q_info = query_.four_cycles[query_edge_id][i];
-            for (auto &d_info : data_.four_cycles[data_edge_id]) {
+            bool found = false;
+            for (int j = 0; j < data_.four_cycles[data_edge_id].size(); j++) {
+                auto &d_info =  data_.four_cycles[data_edge_id][j];
+//            for (auto &d_info : data_.four_cycles[data_edge_id]) {
                 bool validity = true;
                 if (validity) validity &= BitsetCS[q_info.third][d_info.third];
                 if (validity) validity &= BitsetCS[q_info.fourth][d_info.fourth];
@@ -357,16 +365,19 @@ namespace daf {
                 if (validity and q_info.one_three_idx != -1) validity &= EdgeCandidacy(q_info.one_three_idx, d_info.one_three_idx);
                 if (validity and q_info.two_four_idx != -1) validity &= EdgeCandidacy(q_info.two_four_idx, d_info.two_four_idx);
                 if (validity) {
+                    found = true;
+//                    BPQsolver.add_edge(i, j);
                     goto nxt_cycle;
                 }
             }
-            return false;
+            if (!found) return false;
             nxt_cycle:
 #ifdef TIME_CHECK
             steptimer_3.Stop();
 #endif
             continue;
         }
+//        bool ok = (BPQsolver.solve() == (query_.four_cycles[query_edge_id].size()));
         return true;
     }
 

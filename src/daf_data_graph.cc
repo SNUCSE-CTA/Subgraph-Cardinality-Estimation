@@ -293,6 +293,7 @@ void DataGraph::LoadAndProcessGraph() {
                             }
                         }
                     }
+                    max_four_cycles_indexed = std::max(max_four_cycles_indexed, (int)four_cycles[cand_edge].size());
                 }
                 if (i % 30000 == 0) {
                     fprintf(stderr, "%d / %d found %d quads\n",i,GetNumVertices(), num_four_cycles_indexed);

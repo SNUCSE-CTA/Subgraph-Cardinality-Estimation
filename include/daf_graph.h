@@ -84,7 +84,7 @@ namespace daf {
             int two_four_idx, one_three_idx;
         };
 
-        int num_four_cycles_indexed;
+        int num_four_cycles_indexed, max_four_cycles_indexed;
         std::vector<std::vector<CycleInfo>> four_cycles;
         std::vector<int> degrees;
 
