@@ -10,24 +10,34 @@ namespace daf {
         QueryGraph *query_;
         DAG *dag_;
         Vertex root;
-        boost::dynamic_bitset<uint64_t> seen;
-
-        RWI(){};
-        ~RWI(){};
-        void init (DataGraph *data, QueryGraph *query, DAG *dag, CandidateSpace *cs) {
-            CS = cs;
+        bool* seen;
+        int **local_candidates, *local_candidate_size;
+        RWI(DataGraph *data){
             data_ = data;
+            seen = new bool[data->GetNumVertices()];
+            local_candidates = new int*[MAX_QUERY_VERTEX];
+            for (int i = 0; i < MAX_QUERY_VERTEX; i++) {
+                local_candidates[i] = new int[data->GetNumVertices()];
+            }
+            local_candidate_size = new int[MAX_QUERY_VERTEX];
+        };
+        ~RWI(){
+            for (int i = 0; i < MAX_QUERY_VERTEX; i++) {
+                delete[] local_candidates[i];
+            }
+            delete[] local_candidates;
+            delete[] local_candidate_size;
+            delete[] seen;
+        };
+        void init(DataGraph *data, QueryGraph *query, DAG *dag, CandidateSpace *cs) {
+            CS = cs;
             query_ = query;
             dag_ = dag;
-            local_candidates_.resize(query_->GetNumVertices());
-            local_candidate_set_.resize(query_->GetNumVertices());
             num_seen.resize(query_->GetNumVertices(), 0);
-            best_neighbor.resize(query_->GetNumVertices(), -1);
-            seen.resize(data_->GetNumVertices(), false);
+            memset(seen, 0, data_->GetNumVertices());
+            memset(local_candidate_size, 0, query->GetNumVertices());
         }
-        std::vector<int> num_seen, best_neighbor;
-        std::vector<tsl::robin_set<Vertex>> local_candidate_set_;
-        std::vector<std::vector<Vertex>> local_candidates_;
+        std::vector<int> num_seen;
         std::vector<std::pair<std::vector<Vertex>::iterator, std::vector<Vertex>::iterator>> iterators;
         std::vector<int> root_candidates_;
         double IntersectionSamplingEstimate(Size num_samples);

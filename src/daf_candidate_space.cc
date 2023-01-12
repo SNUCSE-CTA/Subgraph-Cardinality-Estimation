@@ -15,7 +15,6 @@ namespace daf {
 
     BipartiteMaximumMatching BPSolver, BPTSolver;
 
-    static int MAX_QUERY_VERTEX = 50, MAX_QUERY_EDGE = 250;
     CandidateSpace::CandidateSpace(DataGraph *data) {
         data_ = data;
         BitsetCS = new bool*[MAX_QUERY_VERTEX];
@@ -30,6 +29,7 @@ namespace daf {
         }
         num_visit_cs_ = new QueryDegree[data_->GetNumVertices()];
         visited_candidates_ = new Vertex[data_->GetNumVertices() * MAX_QUERY_VERTEX];
+        candidate_set_.resize(MAX_QUERY_VERTEX);
         is_data_sparse = data_->is_sparse();
     }
 
@@ -52,12 +52,13 @@ namespace daf {
             memset(BitsetEdgeCS[i], true, data_->edge_info_.size());
         }
         memset(num_visit_cs_, 0, data_->GetNumVertices());
-        memset(visited_candidates_, 0, data_->GetNumVertices() * MAX_QUERY_VERTEX);
+        memset(visited_candidates_, 0, data_->GetNumVertices() * query->GetNumVertices());
         num_visited_candidates = 0;
         BPSolver.global_initialize(query_->GetMaxDegree(), data_->GetMaxDegree());
         BPTSolver.global_initialize(query_->GetMaxDegree(), data_->max_num_trigs);
-        candidate_set_.clear();
-        candidate_set_.resize(query->GetNumVertices());
+        for (int i = 0; i < query_->GetNumVertices(); i++) {
+            candidate_set_[i].clear();
+        }
         cs_adj_.clear();
 
         dag_->BuildDAG(-1);
@@ -155,7 +156,6 @@ namespace daf {
 
     bool CandidateSpace::BipartiteSafety(Vertex cur, Vertex cand) {
 #ifdef BIPARTITE_SAFETY
-
 #ifdef TIME_CHECK
         steptimer_1.Start();
 #endif
@@ -168,7 +168,7 @@ namespace daf {
             int j = 0;
             for (int edge_id : data_->GetIncidentEdges(cand, query_next_label)) {
                 Vertex vc = data_->opposite(edge_id, cand);
-                if (BitsetCS[uc][vc] and EdgeCandidacy(query_edge_index, edge_id)) {
+                if (BitsetCS[uc][vc] and BitsetEdgeCS[query_edge_index][edge_id]) {
                     BPSolver.add_edge(i, j + it[query_next_label]);
                 }
                 j++;
@@ -246,8 +246,8 @@ namespace daf {
             for (auto tv: common_neighbors) {
                 tv_idx++;
                 if (!BitsetCS[qtv.first][tv.first]) continue;
-                if (!EdgeCandidacy(qtv.second.first, tv.second.first)) continue;
-                if (!EdgeCandidacy(qtv.second.second, tv.second.second)) continue;
+                if (!BitsetEdgeCS[qtv.second.first][tv.second.first]) continue;
+                if (!BitsetEdgeCS[qtv.second.second][tv.second.second]) continue;
                 found = true;
                 BPTSolver.add_edge(triangle_index, tv_idx);
             }
@@ -363,9 +363,9 @@ namespace daf {
                 bool validity = true;
                 if (validity) validity &= BitsetCS[q_info.third][d_info.third];
                 if (validity) validity &= BitsetCS[q_info.fourth][d_info.fourth];
-                if (validity) validity &= EdgeCandidacy(q_info.third_edge_idx, d_info.third_edge_idx);
-                if (validity) validity &= EdgeCandidacy(q_info.fourth_edge_idx, d_info.fourth_edge_idx);
-                if (validity) validity &= EdgeCandidacy(q_info.opp_edge_idx, d_info.opp_edge_idx);
+                if (validity) validity &= BitsetEdgeCS[q_info.third_edge_idx][d_info.third_edge_idx];
+                if (validity) validity &= BitsetEdgeCS[q_info.fourth_edge_idx][d_info.fourth_edge_idx];
+                if (validity) validity &= BitsetEdgeCS[q_info.opp_edge_idx][d_info.opp_edge_idx];
                 if (validity and q_info.one_three_idx != -1) validity &= EdgeCandidacy(q_info.one_three_idx, d_info.one_three_idx);
                 if (validity and q_info.two_four_idx != -1) validity &= EdgeCandidacy(q_info.two_four_idx, d_info.two_four_idx);
                 if (validity) {
@@ -427,7 +427,7 @@ namespace daf {
                     for (int data_edge_idx : data_->GetIncidentEdges(nxt_cand, cur_label)) {
                         Vertex cand = data_->opposite(data_edge_idx, nxt_cand);
                         if (data_->GetDegree(cand) < query_->GetDegree(cur)) break;
-                        if (BitsetEdgeCS[query_edge_idx][data_edge_idx] == false) {
+                        if (!BitsetEdgeCS[query_edge_idx][data_edge_idx]) {
                             continue;
                         }
                         if (!EdgeSafety(query_edge_idx, data_edge_idx)) {
@@ -480,9 +480,10 @@ namespace daf {
 
     void CandidateSpace::ConstructCS() {
         Timer csbuild_timer; csbuild_timer.Start();
-        cs_edge_list_.clear();
+        cs_edge_list_.resize(query_->GetNumVertices());
         std::vector <int> CandidateIndex(data_->GetNumVertices());
         for (Size i = 0; i < query_->GetNumVertices(); ++i) {
+            cs_edge_list_[i].resize(GetCandidateSetSize(i));
             for (Size idx = 0; idx < GetCandidateSetSize(i); idx++) {
                 cs_adj_[{i, candidate_set_[i][idx]}] = (tsl::robin_map<Vertex, std::vector<Vertex>>());
             }
@@ -508,13 +509,13 @@ namespace daf {
                         Vertex v = data_->opposite(data_edge_idx, v_adj);
 
                         if (data_->GetDegree(v) < u_degree) break;
-                        if (!EdgeCandidacy(query_edge_idx, data_edge_idx)) continue;
+                        if (!BitsetEdgeCS[query_edge_idx][data_edge_idx]) continue;
                         if (BitsetCS[u][v]){
                             CandidateEdges++;
                             Size v_idx = CandidateIndex[v];
                             VertexPair u_pair = {u, v_idx};
                             VertexPair uc_pair = {u_adj, v_adj_idx};
-                            cs_edge_list_[u_pair].emplace_back(uc_pair);
+                            cs_edge_list_[u][v_idx].emplace_back(uc_pair);
 //                            cs_edge_list_[uc_pair].insert(u_pair);
 
                             /* Add CS_ADJ_List; */

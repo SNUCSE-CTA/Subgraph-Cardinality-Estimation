@@ -28,7 +28,7 @@ public:
     DataGraph *data_;
     QueryGraph *query_;
     DAG *dag_;
-    RWI RWI_;
+    RWI *RWI_;
 
     std::vector<bool> seen_, query_seen_;
 //    std::vector<std::unordered_map<Vertex, double>> num_trees_;

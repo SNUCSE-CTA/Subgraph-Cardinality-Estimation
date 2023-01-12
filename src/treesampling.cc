@@ -10,7 +10,7 @@ namespace daf {
         data_ = data;
         CS = new CandidateSpace(data);
         seen_.resize(data_->GetNumVertices());
-        RWI_ = RWI();
+        RWI_ = new RWI(data);
     }
 
     void TreeSampling::RegisterQuery(QueryGraph *query, DAG *dag) {
@@ -32,7 +32,7 @@ namespace daf {
         BuildQueryTree();
         querytree_timer.Stop();
         std::cout << "Query Tree Building Time: " << querytree_timer.Peek() << " ms\n";
-        RWI_.init(data_, query, dag, CS);
+        RWI_->init(data_, query, dag, CS);
     }
 
     TreeSampling::~TreeSampling() {}
@@ -94,7 +94,7 @@ namespace daf {
                 Vertex v = CS->GetCandidate(u, cs_idx);
                 VertexPair u_pair = {u, cs_idx};
                 std::fill(tmp_num_child.begin(), tmp_num_child.end(), 0.0);
-                for (auto &[uc, vc_idx] : CS->cs_edge_list_[u_pair]){
+                for (auto &[uc, vc_idx] : CS->cs_edge_list_[u][cs_idx]){
                     if (dag_->GetTreeParent(uc, 0) != u) continue;
                     Vertex vc = CS->GetCandidate(uc, vc_idx);
                     Size uc_idx = dag_->GetChildIndex(uc);
@@ -224,7 +224,7 @@ namespace daf {
         std::cout << "Uniform Sampling time: " << std::fixed << sampletimer_uni.GetTime() << " ms\n";
         if (uniformResult.second == 0) {
             sampletimer_inter.Start();
-            double intersectionResult = RWI_.IntersectionSamplingEstimate(num_samples);
+            double intersectionResult = RWI_->IntersectionSamplingEstimate(num_samples);
             sampletimer_inter.Stop();
             std::cout << "Intersection Sampling time: " << std::fixed << sampletimer_inter.GetTime() << " ms\n";
             return intersectionResult;

@@ -30,7 +30,8 @@ namespace daf {
 
         inline Vertex GetCandidate(Vertex u, Size v_idx) const;
 
-        tsl::robin_map<VertexPair, std::vector<VertexPair>> cs_edge_list_;
+        std::vector<std::vector<std::vector<VertexPair>>> cs_edge_list_;
+//        tsl::robin_map<VertexPair, std::vector<VertexPair>> cs_edge_list_;
         tsl::robin_map<VertexPair, tsl::robin_map<Vertex, std::vector<Vertex>>> cs_adj_;
 
 

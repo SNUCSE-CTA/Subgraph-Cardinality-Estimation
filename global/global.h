@@ -23,6 +23,7 @@ using QueryDegree = int8_t;
 using VertexPair = std::pair<Vertex, Vertex>;
 static uint64_t counters[1000];
 
+static int MAX_QUERY_VERTEX = 50, MAX_QUERY_EDGE = 250;
 namespace daf {
     static std::random_device rd;
     static std::mt19937 gen(rd());

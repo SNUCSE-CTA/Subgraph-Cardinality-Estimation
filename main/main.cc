@@ -21,7 +21,10 @@ std::string data_name = "../../dataset/wordnet/data_graph/wordnet.graph";
 std::string query_name = "../../dataset/wordnet/query_graph/query_dense_20_194.graph";
 //std::string data_name = "../../dataset/yeast/data_graph/yeast.graph";
 //std::string query_name = "../../dataset/yeast/query_graph/query_dense_8_120.graph";
-std::deque<std::string> query_names = {query_name};
+std::deque<std::string> query_names = {
+        "../../dataset/wordnet/query_graph/query_dense_20_191.graph",
+//        "../../dataset/wordnet/query_graph/query_dense_20_195.graph"
+};
 
 int num_samples = 1000000;
 int q_cnt = 0;
@@ -30,7 +33,6 @@ std::unordered_map<std::string, double> true_cnt;
 
 
 TreeSampling *TSSolver;
-RWI *RWISolver;
 
 void estimate(DataGraph &data, QueryGraph &query) {
     GlobalTimer.Start();

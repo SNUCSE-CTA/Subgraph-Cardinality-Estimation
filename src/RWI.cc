@@ -30,7 +30,7 @@ namespace daf {
                 if (seen[*iterators[0].first]) {
                     ++iterators[0].first; continue;
                 }
-                local_candidates_[index].push_back(*iterators[0].first);
+                local_candidates[index][local_candidate_size[index]++] = (*iterators[0].first);
                 ++iterators[0].first;
             }
             return;
@@ -59,7 +59,7 @@ namespace daf {
                 if (iterators[i].first == iterators[i].second) return;
             }
 //            fprintf(stderr, "Found %d in all vectors\n",target);
-            local_candidates_[index].push_back(target);
+            local_candidates[index][local_candidate_size[index]++] = target;
             nxt_target:
             ++iterators[0].first;
         }
@@ -69,7 +69,6 @@ namespace daf {
     double RWI::SampleDAGVertex(std::vector<int> &dag_sample, int vertex_id) {
         // Vertex with minimum number of (1-edge) candidate
         std::fill(num_seen.begin(), num_seen.end(), 0);
-        std::fill(best_neighbor.begin(), best_neighbor.end(), -1);
         int u = -1;
         for (int i = 0; i < query_->GetNumVertices(); i++) {
             if (dag_sample[i] != -1) continue;
@@ -80,16 +79,13 @@ namespace daf {
                     int num_nbr = CS->cs_adj_[{q_nbr, dag_sample[q_nbr]}][u].size();
                     if (num_nbr < nbr_cnt) {
                         nbr_cnt = num_nbr;
-                        best_neighbor[i] = q_nbr;
                     }
                 }
             }
         }
         u = std::max_element(num_seen.begin(), num_seen.end()) - num_seen.begin();
-        int best_nbr = best_neighbor[u];
-        local_candidates_[u].clear();
+        local_candidate_size[u] = 0;
         iterators.clear();
-//        iterators.push_back({CS->cs_adj_[{best_nbr, dag_sample[best_nbr]}][u].begin(), CS->cs_adj_[{best_nbr, dag_sample[best_nbr]}][u].end()});
         for (int q_nbr : query_->adj_list[u]) {
             if (dag_sample[q_nbr] == -1) continue;
             VertexPair uPair = {q_nbr, dag_sample[q_nbr]};
@@ -100,50 +96,50 @@ namespace daf {
         });
         for (int seen_candidate : dag_sample) {
             if (seen_candidate == -1) continue;
-            seen.set(seen_candidate);
+            seen[seen_candidate] = true;
         }
 //        std::cerr << "INTERSECTION" << std::endl;
         multivector_intersection(u);
 
         for (int seen_candidate : dag_sample) {
             if (seen_candidate == -1) continue;
-            seen.reset(seen_candidate);
+            seen[seen_candidate] = false;
         }
 
-        if (local_candidates_[u].empty()) {
+        if (local_candidate_size[u] == 0) {
             rwi_sample_count--;
             return 0;
         }
         if (vertex_id == query_->GetNumVertices()-1) {
             rwi_sample_count--;
-            return local_candidates_[u].size() * 1.0;
+            return local_candidate_size[u] * 1.0;
         }
         // Branching sample
         double ht_s = 0.0;
-        local_cand_sum += local_candidates_[u].size();
+        local_cand_sum += local_candidate_size[u];
         local_cand_cnt += 1;
 
-        int sample_space_size = local_candidates_[u].size();
+        int sample_space_size = local_candidate_size[u];
         int num_branches = 1 + std::max(sample_space_size >> 5, std::min(sample_space_size, 4));
         num_branches = std::min(num_branches, sample_space_size);
         if (num_seen[u] == query_->adj_list[u].size()) num_branches = 1;
 
         int skipped = 0;
         if (num_branches == 1) {
-            dag_sample[u] = local_candidates_[u][gen()%local_candidates_[u].size()];
+            dag_sample[u] = local_candidates[u][gen()%local_candidate_size[u]];
             auto nxt_result = SampleDAGVertex(dag_sample, vertex_id+1);
             ht_s += nxt_result;
         }
         else {
-            if (num_branches < local_candidates_[u].size()) {
-                std::shuffle(local_candidates_[u].begin(), local_candidates_[u].end(), gen);
+            if (num_branches < local_candidate_size[u]) {
+                std::shuffle(local_candidates[u], local_candidates[u] + local_candidate_size[u], gen);
             }
             for (int b = 0; b < num_branches; b++) {
                 if (rwi_sample_count <= 0) {
                     skipped = num_branches - b;
                     break;
                 }
-                dag_sample[u] = local_candidates_[u][b];
+                dag_sample[u] = local_candidates[u][b];
                 auto nxt_result = SampleDAGVertex(dag_sample, vertex_id+1);
                 ht_s += nxt_result;
             }
@@ -172,13 +168,9 @@ namespace daf {
         std::vector<int> dag_sample(query_->GetNumVertices(), -1);
         rwi_sample_count = num_samples;
         while (rwi_sample_count > 0) {
-            for (int i = 0; i < query_->GetNumVertices(); i++) {
-                local_candidates_[i].clear();
-                local_candidate_set_[i].clear();
-            }
+            memset(local_candidate_size, 0, query_->GetNumVertices());
             dag_sample[root] = root_candidates_[ht_count % root_candidates_.size()];
             auto recursion_result = SampleDAGVertex(dag_sample, 1);
-//            fprintf(stderr, "%d samples left, weight = %.02lf\n",rwi_sample_count, recursion_result * root_candidates_.size());
             ht_count++;
             ht_est += recursion_result;
 //            break;
