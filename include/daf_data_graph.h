@@ -69,9 +69,6 @@ public:
     std::vector<tsl::hopscotch_map<int, std::pair<int, int>>> trigvertex;
 
 
-    std::vector<std::vector <int>> label_edge_offset;
-
-
     bool is_sparse();
     int max_num_trigs;
 

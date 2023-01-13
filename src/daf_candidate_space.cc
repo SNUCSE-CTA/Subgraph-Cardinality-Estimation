@@ -163,16 +163,14 @@ namespace daf {
         steptimer_1.Start();
 #endif
         BPSolver.reset();
-        auto &it = data_->label_edge_offset[cand];
         for (int i = 0; i < query_->adj_list[cur].size(); i++) {
             Vertex uc = query_->adj_list[cur][i];
             int query_edge_index = query_->GetEdgeIndex(cur, uc);
-            int query_next_label = query_->GetLabel(uc);
             int j = 0;
-            for (int edge_id : data_->GetIncidentEdges(cand, query_next_label)) {
+            for (int edge_id : data_->all_incident_edges_[cand]) {
                 Vertex vc = data_->opposite(edge_id, cand);
                 if (BitsetCS[uc][vc] and BitsetEdgeCS[query_edge_index][edge_id]) {
-                    BPSolver.add_edge(i, j + it[query_next_label]);
+                    BPSolver.add_edge(i, j);
                 }
                 j++;
             }
@@ -192,38 +190,6 @@ namespace daf {
     }
     Vertex CandidateSpace::GetDAGNextVertex(Vertex cur, Size idx, bool topdown) {
         return topdown? dag_->GetParent(cur, idx) : dag_->GetChild(cur, idx);
-    }
-
-    void CandidateSpace::PrepareNeighborSafety(Vertex cur) {
-#ifdef NEIGHBOR_SAFETY
-        std::fill(neighbor_label_frequency.begin(), neighbor_label_frequency.end(), 0);
-        std::fill(in_neighbor_cs.begin(), in_neighbor_cs.end(), 0);
-        for (Size nidx = query_->GetStartOffset(cur); nidx < query_->GetEndOffset(cur); ++nidx) {
-            Vertex q_neighbor = query_->GetNeighbor(nidx);
-            neighbor_label_frequency[query_->GetLabel(q_neighbor)]++;
-            for (Vertex d_neighbor : candidate_set_[q_neighbor]) {
-                in_neighbor_cs[d_neighbor] = true;
-            }
-        }
-#endif
-    }
-
-    bool CandidateSpace::CheckNeighborSafety(Vertex cur, Vertex cand) {
-#ifdef NEIGHBOR_SAFETY
-        auto tmp_label_frequency = neighbor_label_frequency;
-        for (Size nidx = data_->GetStartOffset(cand); nidx < data_->GetEndOffset(cand); nidx++) {
-            Vertex d_neighbor = data_->GetNeighbor(nidx);
-            if (in_neighbor_cs[d_neighbor]) {
-                tmp_label_frequency[data_->GetLabel(d_neighbor)]--;
-            }
-        }
-        for (int l = 0; l < data_->GetNumLabels(); ++l) {
-            if (tmp_label_frequency[l] > 0) {
-                return false;
-            }
-        }
-#endif
-        return true;
     }
 
     inline bool CandidateSpace::EdgeCandidacy(int query_edge_id, int data_edge_id) {
@@ -408,12 +374,7 @@ namespace daf {
     }
 
     bool CandidateSpace::Filter(bool topdown) {
-        bool result = true;
         bool pruned = false;
-        neighbor_label_frequency.resize(data_->GetNumLabels(), 0);
-        in_neighbor_cs.resize(data_->GetNumVertices(), false);
-        tmpBitset.resize(data_->GetNumVertices(), false);
-
         for (Size i = 0; i < query_->GetNumVertices(); ++i) {
             Size query_idx = topdown ? i : query_->GetNumVertices() - i - 1;
             Vertex cur = dag_->GetVertexOrderedByBFS(query_idx);
@@ -450,13 +411,9 @@ namespace daf {
                 num_nxt += 1;
             }
 
-            PrepareNeighborSafety(cur);
-
-
             for (Size i = 0; i < candidate_set_[cur].size(); ++i) {
                 Vertex cand = candidate_set_[cur][i];
                 bool valid = (num_visit_cs_[cand] == num_nxt);
-                if (valid) valid = CheckNeighborSafety(cur, cand);
                 if (valid) valid = BipartiteSafety(cur, cand);
                 if (!valid) {
                     candidate_set_[cur][i] = candidate_set_[cur].back();

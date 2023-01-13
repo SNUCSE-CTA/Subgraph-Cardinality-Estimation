@@ -200,15 +200,6 @@ void DataGraph::LoadAndProcessGraph() {
         }
     }
 
-    label_edge_offset.resize(GetNumVertices(), std::vector<int>(GetNumLabels()+1));
-    for (int cand = 0; cand < GetNumVertices(); cand++) {
-        for (int i = 0; i < GetNumLabels(); i++) {
-            label_edge_offset[cand][i+1] = GetIncidentEdges(cand, i).size();
-            if (i > 0) label_edge_offset[cand][i] += label_edge_offset[cand][i-1];
-        }
-    }
-
-
 
 
     std::cout << "Incidence_ok! : ";
