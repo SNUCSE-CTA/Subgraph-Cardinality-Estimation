@@ -92,7 +92,6 @@ namespace daf {
 
                 double num_ = 1.0;
                 Vertex v = CS->GetCandidate(u, cs_idx);
-                VertexPair u_pair = {u, cs_idx};
                 std::fill(tmp_num_child.begin(), tmp_num_child.end(), 0.0);
                 for (auto &[uc, vc_idx] : CS->cs_edge_list_[u][cs_idx]){
                     if (dag_->GetTreeParent(uc, 0) != u) continue;

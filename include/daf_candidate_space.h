@@ -58,7 +58,6 @@ namespace daf {
         };
         tsl::hopscotch_map<VertexPair, tsl::hopscotch_map<int, std::pair<int, int>>> trigvertex;
         tsl::hopscotch_map<int, std::vector<VertexPair>> reverse_trigvertex;
-        tsl::robin_map<std::pair<int, int>, int*> four_cycle_memo;
 //        tsl::robin_map<std::pair<int, int>, std::vector<int>> four_cycle_memo;
         tsl::robin_map<std::pair<int, int>, std::vector<online_cycle_information>> four_cycle_memo_old;
 

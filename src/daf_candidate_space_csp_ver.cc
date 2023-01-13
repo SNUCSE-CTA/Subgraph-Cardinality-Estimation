@@ -68,27 +68,21 @@ namespace daf {
         if (!FilterByTopDownWithInit()) return false;
 
         Timer csfilter_timer; csfilter_timer.Start();
-        auto CandSize = [this]() {
-            int totalCandidateSetSize = 0;
-            for (int i = 0; i < query_->GetNumVertices(); i++) {
-                totalCandidateSetSize += GetCandidateSetSize(i);
-            }
-            return totalCandidateSetSize;
-        };
-        int cand_sz = CandSize();
-        global_iteration_count = 0;
-        fprintf(stdout, "Iter %d : Cand_size = %d\n",global_iteration_count, cand_sz);
-        while (true) {
-            global_iteration_count++;
-            bool pruned = false;
-            if (Filter(false)) pruned = true;
-            if (Filter(true)) pruned = true;
-            if (!pruned) break;
-            int new_sz = CandSize();
-            if (new_sz > 0.95 * cand_sz) break;
-            cand_sz = new_sz;
-            fprintf(stdout, "Iter %d : Cand_size = %d\n",global_iteration_count, cand_sz);
-        }
+
+//        global_iteration_count = 0;
+//        fprintf(stdout, "Iter %d : Cand_size = %d\n",global_iteration_count, cand_sz);
+//        while (true) {
+//            global_iteration_count++;
+//            bool pruned = false;
+//            if (Filter(false)) pruned = true;
+//            if (Filter(true)) pruned = true;
+//            if (!pruned) break;
+//            int new_sz = CandSize();
+//            if (new_sz > 0.95 * cand_sz) break;
+//            cand_sz = new_sz;
+//            fprintf(stdout, "Iter %d : Cand_size = %d\n",global_iteration_count, cand_sz);
+//        }
+        Filter(false);
 
         csfilter_timer.Stop();
         fprintf(stdout, "CS prune time : %.02lf ms\n",csfilter_timer.GetTime());
@@ -407,24 +401,49 @@ namespace daf {
         return true;
     }
 
+    struct variable {
+        double priority;
+        int stage, which;
+        bool operator>(const variable &o) const {
+            return priority > o.priority;
+        }
+        bool operator<(const variable &o) const {
+            return priority < o.priority;
+        }
+    };
+
     bool CandidateSpace::Filter(bool topdown) {
-        bool result = true;
-        bool pruned = false;
-        neighbor_label_frequency.resize(data_->GetNumLabels(), 0);
-        in_neighbor_cs.resize(data_->GetNumVertices(), false);
-        tmpBitset.resize(data_->GetNumVertices(), false);
 
-        for (Size i = 0; i < query_->GetNumVertices(); ++i) {
-            Size query_idx = topdown ? i : query_->GetNumVertices() - i - 1;
-            Vertex cur = dag_->GetVertexOrderedByBFS(query_idx);
+        auto CandSize = [this]() {
+            int totalCandidateSetSize = 0;
+            for (int i = 0; i < query_->GetNumVertices(); i++) {
+                totalCandidateSetSize += GetCandidateSetSize(i);
+            }
+            return totalCandidateSetSize;
+        };
+        int cand_sz = CandSize();
+        fprintf(stderr, "Initial CS SIZE = %d\n",cand_sz);
 
-            if (GetDAGNextCount(cur, topdown) == 0) continue;
 
+        std::vector<int> local_stage(query_->GetNumVertices(), 0);
+        std::vector<double> priority(query_->GetNumVertices(), 0.5);
+        std::priority_queue<variable> candidate_queue;
+        for (int i = 0; i < query_->GetNumVertices(); i++) {
+            candidate_queue.push({priority[i], 0, i});
+        }
+        int queue_pop_count = 0;
+        int maximum_queue_cnt = 5 * query_->GetNumVertices();
+        int current_stage = 0;
+        while (!candidate_queue.empty()) {
+            auto [pri, stage, cur] = candidate_queue.top();
+            candidate_queue.pop();
+            if (stage < local_stage[cur]) continue;
+            current_stage++;
+            queue_pop_count++;
+            fprintf(stderr, "Got vertex %d to reduce... Candidate Size of stage %d : %d\n",cur, current_stage, CandSize());
             Label cur_label = query_->GetLabel(cur);
             QueryDegree num_nxt = 0;
-
-            for (Size i = 0; i < GetDAGNextCount(cur, topdown); ++i) {
-                Vertex nxt = GetDAGNextVertex(cur, i, topdown);
+            for (Vertex nxt : query_->adj_list[cur]) {
                 int query_edge_idx = query_->GetEdgeIndex(nxt, cur);
                 for (Vertex nxt_cand : candidate_set_[nxt]) {
                     for (int data_edge_idx : data_->GetIncidentEdges(nxt_cand, cur_label)) {
@@ -449,36 +468,40 @@ namespace daf {
                 }
                 num_nxt += 1;
             }
-
-            PrepareNeighborSafety(cur);
-
-
+            int bef_cand_size = candidate_set_[cur].size();
             for (Size i = 0; i < candidate_set_[cur].size(); ++i) {
                 Vertex cand = candidate_set_[cur][i];
                 bool valid = (num_visit_cs_[cand] == num_nxt);
-                if (valid) valid = CheckNeighborSafety(cur, cand);
                 if (valid) valid = BipartiteSafety(cur, cand);
                 if (!valid) {
                     candidate_set_[cur][i] = candidate_set_[cur].back();
                     candidate_set_[cur].pop_back();
                     --i;
                     BitsetCS[cur][cand] = false;
-                    pruned = true;
                 }
             }
-
-            if (candidate_set_[cur].empty()) {
-                fprintf(stderr, "FOUND INVALID %u\n",cur);
-                exit(2);
-            }
-
             while (num_visited_candidates > 0) {
                 num_visited_candidates -= 1;
                 num_visit_cs_[visited_candidates_[num_visited_candidates]] = 0;
             }
+            int aft_cand_size = candidate_set_[cur].size();
+            if (aft_cand_size == bef_cand_size) {
+                priority[cur] = 0;
+                continue;
+            }
+            double out_prob = 1 - aft_cand_size * 1.0 / bef_cand_size;
+            priority[cur] = 0;
+            fprintf(stderr, "Reduced CS[%d] from %d to %d\n",cur,bef_cand_size,aft_cand_size);
+            for (Vertex nxt : query_->adj_list[cur]) {
+                priority[nxt] = 1 - (1 - out_prob) * (1 - priority[nxt]);
+                if (priority[nxt] < 0.10) continue;
+                local_stage[nxt] = current_stage;
+                fprintf(stderr, "    Cur=[%d] pushes Nxt=[%d] with priority %lf\n",cur,nxt,priority[nxt]);
+                candidate_queue.push({priority[nxt], current_stage, nxt});
+            }
         }
 
-        return pruned;
+        return true;
     }
 
     void CandidateSpace::ConstructCS() {

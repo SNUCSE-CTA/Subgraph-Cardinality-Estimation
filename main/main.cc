@@ -22,8 +22,8 @@ std::string query_name = "../../dataset/wordnet/query_graph/query_dense_20_194.g
 //std::string data_name = "../../dataset/yeast/data_graph/yeast.graph";
 //std::string query_name = "../../dataset/yeast/query_graph/query_dense_8_120.graph";
 std::deque<std::string> query_names = {
-        "../../dataset/wordnet/query_graph/query_dense_20_191.graph",
-//        "../../dataset/wordnet/query_graph/query_dense_20_195.graph"
+//        "../../dataset/wordnet/query_graph/query_dense_20_191.graph",
+        query_name
 };
 
 int num_samples = 1000000;
@@ -48,7 +48,6 @@ void estimate(DataGraph &data, QueryGraph &query) {
     total_timer.Start();
     daf::DAG dag(data, query);
     total_timer.Stop();
-    std::cout << "DAG Constructor upto: " << std::fixed << GlobalTimer.Peek() << " ms\n";
 
     total_timer.Start();
     dag.BuildDAG();
@@ -57,7 +56,6 @@ void estimate(DataGraph &data, QueryGraph &query) {
     total_timer.Start();
     TSSolver->RegisterQuery(&query, &dag);
     total_timer.Stop();
-    std::cout << "Upto Sampling Prep time: " << std::fixed << GlobalTimer.Peek() << " ms\n";
 
     for (auto u = 0; u < query.GetNumVertices(); ++u) {
         if (TSSolver->CS->GetCandidateSetSize(u) == 0) {
