@@ -328,13 +328,16 @@ namespace daf {
             bool found = false;
             for (int j = 0; j < data_->four_cycles[data_edge_id].size(); j++) {
                 auto &d_info =  data_->four_cycles[data_edge_id][j];
-//            for (auto &d_info : data_->four_cycles[data_edge_id]) {
                 bool validity = true;
-                if (validity) validity &= BitsetCS[q_info.third][d_info.third];
-                if (validity) validity &= BitsetCS[q_info.fourth][d_info.fourth];
-                if (validity) validity &= BitsetEdgeCS[q_info.third_edge_idx][d_info.third_edge_idx];
-                if (validity) validity &= BitsetEdgeCS[q_info.fourth_edge_idx][d_info.fourth_edge_idx];
-                if (validity) validity &= BitsetEdgeCS[q_info.opp_edge_idx][d_info.opp_edge_idx];
+                validity &= BitsetCS[q_info.third][d_info.third];
+                validity &= BitsetCS[q_info.fourth][d_info.fourth];
+                if (!validity) continue;
+                validity &= BitsetEdgeCS[q_info.third_edge_idx][d_info.third_edge_idx];
+                if (!validity) continue;
+                validity &= BitsetEdgeCS[q_info.fourth_edge_idx][d_info.fourth_edge_idx];
+                if (!validity) continue;
+                validity &= BitsetEdgeCS[q_info.opp_edge_idx][d_info.opp_edge_idx];
+                if (!validity) continue;
                 if (validity and q_info.one_three_idx != -1) validity &= EdgeCandidacy(q_info.one_three_idx, d_info.one_three_idx);
                 if (validity and q_info.two_four_idx != -1) validity &= EdgeCandidacy(q_info.two_four_idx, d_info.two_four_idx);
                 if (validity) {
@@ -396,7 +399,7 @@ namespace daf {
                         }
                         if (!EdgeSafety(query_edge_idx, data_edge_idx)) {
                             BitsetEdgeCS[query_edge_idx][data_edge_idx] = false;
-                            BitsetEdgeCS[query_->opposite_edge[query_edge_idx]][data_->opposite_edge[data_edge_idx]] = false;
+//                            BitsetEdgeCS[query_->opposite_edge[query_edge_idx]][data_->opposite_edge[data_edge_idx]] = false;
                             continue;
                         }
                         if (num_visit_cs_[cand] == num_nxt) {

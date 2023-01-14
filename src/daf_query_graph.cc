@@ -124,7 +124,7 @@ bool QueryGraph::ProcessLabeledGraph(const DataGraph &data) {
         edge_id = edge_index_map_[vp];
     }
     num_four_cycles_indexed = 0;
-    four_cycles.resize(edge_id);
+    four_cycles.resize(edge_info_.size());
     for (int i = 0; i < GetNumVertices(); i++) {
         for (int cand_edge: all_incident_edges_[i]) {
             int nxt_cand = opposite(cand_edge, i);
