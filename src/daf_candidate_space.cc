@@ -62,7 +62,7 @@ namespace daf {
         for (int i = 0; i < query_->GetNumVertices(); i++) {
             candidate_set_[i].clear();
         }
-        cs_adj_.clear();
+//        cs_adj_.clear();
 
         dag_->BuildDAG(-1);
         if (!FilterByTopDownWithInit()) return false;
@@ -445,9 +445,6 @@ namespace daf {
         std::vector <int> CandidateIndex(data_->GetNumVertices());
         for (Size i = 0; i < query_->GetNumVertices(); ++i) {
             cs_edge_list_[i].resize(GetCandidateSetSize(i));
-            for (Size idx = 0; idx < GetCandidateSetSize(i); idx++) {
-                cs_adj_[{i, candidate_set_[i][idx]}] = (tsl::robin_map<Vertex, std::vector<Vertex>>());
-            }
         }
         Size CandidateSpaceSize = 0, CandidateEdges = 0;
         for (Size i = 0; i < query_->GetNumVertices(); ++i) {
@@ -479,17 +476,24 @@ namespace daf {
 //                            cs_edge_list_[uc_pair].insert(u_pair);
 
                             /* Add CS_ADJ_List; */
-                            cs_adj_[{u, v}][u_adj].emplace_back(v_adj);
+//                            cs_adj_[{u, v}][u_adj].emplace_back(v_adj);
                         }
                     }
                 }
             }
         }
-        for (auto &uPair : cs_adj_) {
-            for (auto &ucPair : uPair.second) {
-                auto &it = cs_adj_[uPair.first][ucPair.first];
+        cs_edge_.clear();
+        cs_edge_.resize(query_->GetNumVertices());
+        for (int u = 0; u < query_->GetNumVertices(); u++) {
+            cs_edge_[u].resize(GetCandidateSetSize(u));
+            for (Size idx = 0; idx < GetCandidateSetSize(u); idx++) {
+                auto &it = cs_edge_list_[u][idx];
                 std::sort(it.begin(), it.end());
                 it.erase(std::unique(it.begin(), it.end()), it.end());
+                cs_edge_[u][idx].resize(query_->GetNumVertices());
+                for (auto &i : it) {
+                    cs_edge_[u][idx][i.first].push_back(i.second);
+                }
             }
         }
 
@@ -563,14 +567,10 @@ namespace daf {
                 fprintf(stdout, "%d ", x);
             }
             fprintf(stdout, "\n");
-            for (int x : candidate_set_[i]) {
-                fprintf(stdout, "  CS Edges from %d\n",x);
-                for (auto it : cs_adj_[{i, x}]) {
-                    fprintf(stdout, "    Edge with [%d] : ",it.first);
-                    for (auto itt: it.second) {
-                        fprintf(stdout, "%d ", itt);
-                    }
-                    fprintf(stdout, "\n");
+            for (int j = 0; j < GetCandidateSetSize(i); j++) {
+                fprintf(stdout, "  CS Edges from %d\n", GetCandidate(i, j));
+                for (auto it : cs_edge_list_[i][j]) {
+                    fprintf(stdout, "    Edge with [%d, %d]\n",it.first, it.second);
                 }
             }
         }

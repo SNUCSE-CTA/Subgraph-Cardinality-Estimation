@@ -27,9 +27,6 @@ namespace daf {
         int num_vectors = iterators.size();
         if (num_vectors == 1) {
             while (iterators[0].first != iterators[0].second) {
-                if (seen[*iterators[0].first]) {
-                    ++iterators[0].first; continue;
-                }
                 local_candidates[index][local_candidate_size[index]++] = (*iterators[0].first);
                 ++iterators[0].first;
             }
@@ -37,15 +34,8 @@ namespace daf {
         }
         while (iterators[0].first != iterators[0].second) {
             int target = *iterators[0].first;
-            if (seen[target]) {
-//                fprintf(stderr, "Target %d is seen...pass", target);
-                ++iterators[0].first; continue;
-            }
             for (int i = 1; i < num_vectors; i++) {
                 while (iterators[i].first != iterators[i].second) {
-                    if (seen[*iterators[i].first]) {
-                        ++iterators[i].first; continue;
-                    }
                     if (*iterators[i].first < target) {
 //                        fprintf(stderr, "Increment vector %d from %d\n",i,*iterators[i].first);
                         ++iterators[i].first;
@@ -65,7 +55,6 @@ namespace daf {
         }
     }
 
-
     double RWI::SampleDAGVertex(std::vector<int> &dag_sample, int vertex_id) {
         // Vertex with minimum number of (1-edge) candidate
         std::fill(num_seen.begin(), num_seen.end(), 0);
@@ -76,7 +65,7 @@ namespace daf {
             for (int q_nbr : query_->adj_list[i]) {
                 if (dag_sample[q_nbr] != -1) {
                     num_seen[i]++;
-                    int num_nbr = CS->cs_adj_[{q_nbr, dag_sample[q_nbr]}][u].size();
+                    int num_nbr = CS->cs_edge_[q_nbr][dag_sample[q_nbr]][i].size();
                     if (num_nbr < nbr_cnt) {
                         nbr_cnt = num_nbr;
                     }
@@ -88,22 +77,30 @@ namespace daf {
         iterators.clear();
         for (int q_nbr : query_->adj_list[u]) {
             if (dag_sample[q_nbr] == -1) continue;
-            VertexPair uPair = {q_nbr, dag_sample[q_nbr]};
-            iterators.push_back({CS->cs_adj_[uPair][u].begin(), CS->cs_adj_[uPair][u].end()});
+            iterators.push_back({CS->cs_edge_[q_nbr][dag_sample[q_nbr]][u].begin(), CS->cs_edge_[q_nbr][dag_sample[q_nbr]][u].end()});
         }
         std::sort(iterators.begin(), iterators.end(), [](auto &a, auto &b) -> bool {
             return a.second - a.first < b.second - b.first;
         });
-        for (int seen_candidate : dag_sample) {
-            if (seen_candidate == -1) continue;
-            seen[seen_candidate] = true;
-        }
 //        std::cerr << "INTERSECTION" << std::endl;
         multivector_intersection(u);
+        for (int i = 0; i < query_->GetNumVertices(); i++) {
+            if (dag_sample[i] == -1) continue;
+            seen[CS->GetCandidate(i, dag_sample[i])] = true;
+        }
 
-        for (int seen_candidate : dag_sample) {
-            if (seen_candidate == -1) continue;
-            seen[seen_candidate] = false;
+        for (int i = 0; i < local_candidate_size[u]; ++i) {
+//            fprintf(stderr, "i = %d, local_candidates[%d][i] = %d\n",i,u, local_candidates[u][i]);
+            if (seen[CS->GetCandidate(u, local_candidates[u][i])]) {
+                local_candidates[u][i] = local_candidates[u][local_candidate_size[u]-1];
+                local_candidate_size[u]--;
+                i--;
+            }
+        }
+
+        for (int i = 0; i < query_->GetNumVertices(); i++) {
+            if (dag_sample[i] == -1) continue;
+            seen[CS->GetCandidate(i, dag_sample[i])] = false;
         }
 
         if (local_candidate_size[u] == 0) {
@@ -169,7 +166,8 @@ namespace daf {
         rwi_sample_count = num_samples;
         while (rwi_sample_count > 0) {
             memset(local_candidate_size, 0, query_->GetNumVertices());
-            dag_sample[root] = root_candidates_[ht_count % root_candidates_.size()];
+//            dag_sample[root] = root_candidates_[ht_count % root_candidates_.size()];
+            dag_sample[root] = (ht_count % root_candidates_.size());
             auto recursion_result = SampleDAGVertex(dag_sample, 1);
             ht_count++;
             ht_est += recursion_result;
