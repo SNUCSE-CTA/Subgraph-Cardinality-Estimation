@@ -121,11 +121,12 @@ struct BipartiteMaximumMatching {
     }
 
     bool dfs(Vertex r) {
+        if (used[r]) return false;
         used[r] = true;
         for (int i = 0; i < adj_size[r]; i++) {
             Vertex c = adj[r][i];
             Vertex k = right[c];
-            if (k == -1 or !used[k] and dfs(k)) {
+            if (k == -1 or dfs(k)) {
                 left[r] = c;
                 right[c] = r;
                 return true;

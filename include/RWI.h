@@ -8,7 +8,6 @@ namespace daf {
         CandidateSpace *CS;
         DataGraph *data_;
         QueryGraph *query_;
-        DAG *dag_;
         Vertex root;
         bool* seen;
         int **local_candidates, *local_candidate_size;
@@ -29,10 +28,9 @@ namespace daf {
             delete[] local_candidate_size;
             delete[] seen;
         };
-        void init(DataGraph *data, QueryGraph *query, DAG *dag, CandidateSpace *cs) {
+        void init(QueryGraph *query, CandidateSpace *cs) {
             CS = cs;
             query_ = query;
-            dag_ = dag;
             num_seen.resize(query_->GetNumVertices(), 0);
             memset(seen, 0, data_->GetNumVertices());
             memset(local_candidate_size, 0, query->GetNumVertices());

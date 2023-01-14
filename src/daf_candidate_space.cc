@@ -78,6 +78,7 @@ namespace daf {
         int cand_sz = CandSize();
         global_iteration_count = 0;
         fprintf(stdout, "Iter %d : Cand_size = %d\n",global_iteration_count, cand_sz);
+        fflush(stdout);
         while (true) {
             global_iteration_count++;
             bool pruned = false;
@@ -162,6 +163,23 @@ namespace daf {
 #ifdef TIME_CHECK
         steptimer_1.Start();
 #endif
+        if (query_->adj_list[cur].size() == 1) {
+            int uc = query_->adj_list[cur][0];
+            int query_edge_index = query_->GetEdgeIndex(cur, uc);
+            for (int edge_id : data_->all_incident_edges_[cand]) {
+                Vertex vc = data_->opposite(edge_id, cand);
+                if (BitsetCS[uc][vc] and BitsetEdgeCS[query_edge_index][edge_id]) {
+#ifdef TIME_CHECK
+                    steptimer_1.Stop();
+#endif
+                    return true;
+                }
+            }
+#ifdef TIME_CHECK
+            steptimer_1.Stop();
+#endif
+            return false;
+        }
         BPSolver.reset();
         for (int i = 0; i < query_->adj_list[cur].size(); i++) {
             Vertex uc = query_->adj_list[cur][i];
@@ -203,9 +221,28 @@ namespace daf {
 #ifdef TIME_CHECK
         steptimer_2.Start();
 #endif
-        int cand, nxt_cand; std::tie(cand, nxt_cand) = data_->edge_info_[data_edge_id].vp;
-        int cur, nxt; std::tie(cur, nxt) = query_->edge_info_[query_edge_id].vp;
+//        fflush(stdout);
+        if (query_->trigvertex[query_edge_id].empty()) return true;
         auto &common_neighbors = data_->trigvertex[data_edge_id];
+        if (query_->trigvertex[query_edge_id].size() > common_neighbors.size()) return false;
+        if (query_->trigvertex[query_edge_id].size() == 1) {
+            auto qtv = *(query_->trigvertex[query_edge_id].begin());
+            for (auto tv: common_neighbors) {
+                if (!BitsetCS[qtv.first][tv.first]) continue;
+                if (!BitsetEdgeCS[qtv.second.first][tv.second.first]) continue;
+                if (!BitsetEdgeCS[qtv.second.second][tv.second.second]) continue;
+#ifdef TIME_CHECK
+                steptimer_2.Stop();
+#endif
+                return true;
+            }
+#ifdef TIME_CHECK
+            steptimer_2.Stop();
+#endif
+            return false;
+        }
+//        else return true;
+//        fprintf(stderr, "Trianglesafety %d %d : Size %lu vs %lu MBP in\n", query_edge_id, data_edge_id, query_->trigvertex[query_edge_id].size(), common_neighbors.size());
         BPTSolver.reset();
         int triangle_index = -1;
         for (auto qtv: query_->trigvertex[query_edge_id]) {
@@ -394,6 +431,7 @@ namespace daf {
                     for (int data_edge_idx : data_->GetIncidentEdges(nxt_cand, cur_label)) {
                         Vertex cand = data_->opposite(data_edge_idx, nxt_cand);
                         if (data_->GetDegree(cand) < query_->GetDegree(cur)) break;
+                        if (num_visit_cs_[cand] < num_nxt) continue;
                         if (!BitsetEdgeCS[query_edge_idx][data_edge_idx]) {
                             continue;
                         }

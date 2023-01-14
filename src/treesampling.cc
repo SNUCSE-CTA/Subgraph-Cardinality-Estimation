@@ -32,7 +32,7 @@ namespace daf {
         BuildQueryTree();
         querytree_timer.Stop();
         std::cout << "Query Tree Building Time: " << querytree_timer.GetTime() << " ms\n";
-        RWI_->init(data_, query, dag, CS);
+        RWI_->init(query, CS);
     }
 
     TreeSampling::~TreeSampling() {}
