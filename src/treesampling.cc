@@ -11,6 +11,7 @@ namespace daf {
         CS = new CandidateSpace(data);
         seen_.resize(data_->GetNumVertices());
         RWI_ = new RWI(data);
+        
     }
 
     void TreeSampling::RegisterQuery(QueryGraph *query, DAG *dag) {
@@ -20,14 +21,12 @@ namespace daf {
         CS->BuildCS(query, dag);
         std::cout << "CSTIME " << CSTimer.Peek() << " ms\n";
         std::fill(seen_.begin(), seen_.end(), 0);
-
         sample_dist_.clear();
         num_trees_.clear();
         sample_candidates_.clear();
         sample_candidate_weights_.clear();
         sample_dist_.clear();
         root_candidates_.clear();
-
         Timer querytree_timer; querytree_timer.Start();
         BuildQueryTree();
         querytree_timer.Stop();

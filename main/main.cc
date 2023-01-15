@@ -44,7 +44,6 @@ void estimate(DataGraph &data, QueryGraph &query) {
     total_timer.Stop();
     std::cout << "Query Preprocess time: " << std::fixed << GlobalTimer.Peek() << " ms\n";
 
-
     total_timer.Start();
     daf::DAG dag(data, query);
     total_timer.Stop();
@@ -52,11 +51,9 @@ void estimate(DataGraph &data, QueryGraph &query) {
     total_timer.Start();
     dag.BuildDAG();
     total_timer.Stop();
-
     total_timer.Start();
     TSSolver->RegisterQuery(&query, &dag);
     total_timer.Stop();
-
     for (auto u = 0; u < query.GetNumVertices(); ++u) {
         if (TSSolver->CS->GetCandidateSetSize(u) == 0) {
             std::cout << "Total time: " << total_timer.GetTime() << " ms\n";
@@ -66,7 +63,6 @@ void estimate(DataGraph &data, QueryGraph &query) {
     sample_timer.Start();
     double est = TSSolver->EstimateEmbeddings(num_samples);
     sample_timer.Stop();
-
     total_timer.Add(sample_timer);
     std::cout << "Total time: " << std::fixed << total_timer.GetTime() << " ms\n";
     std::cout << "#TRUE : " << std::scientific << std::setprecision(4) << true_cnt[query_name] << std::endl;
@@ -137,7 +133,6 @@ int main(int argc, char *argv[]) {
 //    while (query_names.size() >= 100) {
 //        query_names.pop_front();
 //    }
-
     for (std::string &qname : query_names) {
         q_cnt++;
         query_name = qname;
