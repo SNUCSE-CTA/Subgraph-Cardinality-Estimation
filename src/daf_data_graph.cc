@@ -237,6 +237,7 @@ void DataGraph::LoadAndProcessGraph() {
             }
         }
 
+        max_num_trigs = 0;
         for (EdgeInfo e : edge_info_) {
             VertexPair vp = e.vp;
             for (int i = 0; i < GetNumLabels(); i++) {
@@ -258,9 +259,11 @@ void DataGraph::LoadAndProcessGraph() {
             }
         }
         if (num_4c_cand < 1e10) {
+            num_four_cycles_indexed = 0;
             for (int i = 0; i < GetNumVertices(); i++) {
                 for (int cand_edge : all_incident_edges_[i]) {
                     int nxt_cand = opposite(cand_edge, i);
+                    int indexed_cnt = 0;
                     for (int third_edge_idx : all_incident_edges_[nxt_cand]) {
                         int third_cand = opposite(third_edge_idx, nxt_cand);
                         if (third_cand == i) continue;
@@ -280,16 +283,17 @@ void DataGraph::LoadAndProcessGraph() {
                                 c_info.two_four_idx = GetEdgeIndex(nxt_cand, fourth_cand);
 
                                 four_cycles[cand_edge].push_back(c_info);
-                                num_four_cycles_indexed++;
+                                indexed_cnt++;
                             }
                         }
                     }
+                    num_four_cycles_indexed += indexed_cnt;
+//                    fprintf(stderr, "Edge %d: found %d quads\n",cand_edge, indexed_cnt);
+//                    fflush(stderr);
                     max_four_cycles_indexed = std::max(max_four_cycles_indexed, (int)four_cycles[cand_edge].size());
                 }
-                if (i % 30000 == 0) {
-                    fprintf(stderr, "%d / %d found %d quads\n",i,GetNumVertices(), num_four_cycles_indexed);
-                    fflush(stderr);
-                }
+//                if (i % 30000 == 0) {
+//                }
             }
             std::cout << "Total # of quads : " << num_four_cycles_indexed << std::endl;
         }

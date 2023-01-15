@@ -31,8 +31,7 @@ namespace daf {
         inline Vertex GetCandidate(Vertex u, Size v_idx) const;
 
         std::vector<std::vector<std::vector<VertexPair>>> cs_edge_list_;
-//        tsl::robin_map<VertexPair, std::vector<VertexPair>> cs_edge_list_;
-        tsl::robin_map<VertexPair, tsl::robin_map<Vertex, std::vector<Vertex>>> cs_adj_;
+        std::vector<std::vector<std::vector<std::vector<int>>>> cs_edge_;
 
 
         void printCS();
@@ -56,15 +55,9 @@ namespace daf {
             int d_third_edge_idx, d_fourth_edge_idx; // tex = 2->3, fex = 1->4
             int d_opp_edge_idx; // 3->4
         };
-        tsl::hopscotch_map<VertexPair, tsl::hopscotch_map<int, std::pair<int, int>>> trigvertex;
-        tsl::hopscotch_map<int, std::vector<VertexPair>> reverse_trigvertex;
-//        tsl::robin_map<std::pair<int, int>, std::vector<int>> four_cycle_memo;
         tsl::robin_map<std::pair<int, int>, std::vector<online_cycle_information>> four_cycle_memo_old;
 
         bool **BitsetCS;
-        boost::dynamic_bitset<uint64_t> tmpBitset;
-//        std::vector<boost::dynamic_bitset<uint64_t>> BitsetCS;
-
         bool **BitsetEdgeCS;
 
         QueryDegree *num_visit_cs_;
@@ -73,8 +66,6 @@ namespace daf {
 
 
         int num_cs_edges_;
-        std::vector<int> neighbor_label_frequency;
-        std::vector<int> in_neighbor_cs;
 
         bool FilterByTopDownWithInit();
 

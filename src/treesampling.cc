@@ -30,8 +30,8 @@ namespace daf {
         Timer querytree_timer; querytree_timer.Start();
         BuildQueryTree();
         querytree_timer.Stop();
-        std::cout << "Query Tree Building Time: " << querytree_timer.Peek() << " ms\n";
-        RWI_->init(data_, query, dag, CS);
+        std::cout << "Query Tree Building Time: " << querytree_timer.GetTime() << " ms\n";
+        RWI_->init(query, CS);
     }
 
     TreeSampling::~TreeSampling() {}
@@ -44,8 +44,7 @@ namespace daf {
                 if (i > q_neighbor) continue;
                 double ij_cs_edge = 0;
                 for (Size cs_idx = 0; cs_idx < CS->GetCandidateSetSize(i); ++cs_idx) {
-                    int v = CS->GetCandidate(i, cs_idx);
-                    Size num_cs_neighbor = CS->cs_adj_[{i, v}][q_neighbor].size();
+                    Size num_cs_neighbor = CS->cs_edge_[i][cs_idx][q_neighbor].size();
                     ij_cs_edge += num_cs_neighbor;
                 }
                 ij_cs_edge /= ((1 + CS->GetCandidateSetSize(i)) * (1 + CS->GetCandidateSetSize(q_neighbor)));

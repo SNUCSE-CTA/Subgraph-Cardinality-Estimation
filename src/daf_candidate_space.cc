@@ -62,7 +62,7 @@ namespace daf {
         for (int i = 0; i < query_->GetNumVertices(); i++) {
             candidate_set_[i].clear();
         }
-        cs_adj_.clear();
+//        cs_adj_.clear();
 
         dag_->BuildDAG(-1);
         if (!FilterByTopDownWithInit()) return false;
@@ -78,6 +78,7 @@ namespace daf {
         int cand_sz = CandSize();
         global_iteration_count = 0;
         fprintf(stdout, "Iter %d : Cand_size = %d\n",global_iteration_count, cand_sz);
+        fflush(stdout);
         while (true) {
             global_iteration_count++;
             bool pruned = false;
@@ -162,6 +163,23 @@ namespace daf {
 #ifdef TIME_CHECK
         steptimer_1.Start();
 #endif
+        if (query_->adj_list[cur].size() == 1) {
+            int uc = query_->adj_list[cur][0];
+            int query_edge_index = query_->GetEdgeIndex(cur, uc);
+            for (int edge_id : data_->all_incident_edges_[cand]) {
+                Vertex vc = data_->opposite(edge_id, cand);
+                if (BitsetCS[uc][vc] and BitsetEdgeCS[query_edge_index][edge_id]) {
+#ifdef TIME_CHECK
+                    steptimer_1.Stop();
+#endif
+                    return true;
+                }
+            }
+#ifdef TIME_CHECK
+            steptimer_1.Stop();
+#endif
+            return false;
+        }
         BPSolver.reset();
         for (int i = 0; i < query_->adj_list[cur].size(); i++) {
             Vertex uc = query_->adj_list[cur][i];
@@ -203,9 +221,28 @@ namespace daf {
 #ifdef TIME_CHECK
         steptimer_2.Start();
 #endif
-        int cand, nxt_cand; std::tie(cand, nxt_cand) = data_->edge_info_[data_edge_id].vp;
-        int cur, nxt; std::tie(cur, nxt) = query_->edge_info_[query_edge_id].vp;
+//        fflush(stdout);
+        if (query_->trigvertex[query_edge_id].empty()) return true;
         auto &common_neighbors = data_->trigvertex[data_edge_id];
+        if (query_->trigvertex[query_edge_id].size() > common_neighbors.size()) return false;
+        if (query_->trigvertex[query_edge_id].size() == 1) {
+            auto qtv = *(query_->trigvertex[query_edge_id].begin());
+            for (auto tv: common_neighbors) {
+                if (!BitsetCS[qtv.first][tv.first]) continue;
+                if (!BitsetEdgeCS[qtv.second.first][tv.second.first]) continue;
+                if (!BitsetEdgeCS[qtv.second.second][tv.second.second]) continue;
+#ifdef TIME_CHECK
+                steptimer_2.Stop();
+#endif
+                return true;
+            }
+#ifdef TIME_CHECK
+            steptimer_2.Stop();
+#endif
+            return false;
+        }
+//        else return true;
+//        fprintf(stderr, "Trianglesafety %d %d : Size %lu vs %lu MBP in\n", query_edge_id, data_edge_id, query_->trigvertex[query_edge_id].size(), common_neighbors.size());
         BPTSolver.reset();
         int triangle_index = -1;
         for (auto qtv: query_->trigvertex[query_edge_id]) {
@@ -328,13 +365,16 @@ namespace daf {
             bool found = false;
             for (int j = 0; j < data_->four_cycles[data_edge_id].size(); j++) {
                 auto &d_info =  data_->four_cycles[data_edge_id][j];
-//            for (auto &d_info : data_->four_cycles[data_edge_id]) {
                 bool validity = true;
-                if (validity) validity &= BitsetCS[q_info.third][d_info.third];
-                if (validity) validity &= BitsetCS[q_info.fourth][d_info.fourth];
-                if (validity) validity &= BitsetEdgeCS[q_info.third_edge_idx][d_info.third_edge_idx];
-                if (validity) validity &= BitsetEdgeCS[q_info.fourth_edge_idx][d_info.fourth_edge_idx];
-                if (validity) validity &= BitsetEdgeCS[q_info.opp_edge_idx][d_info.opp_edge_idx];
+                validity &= BitsetCS[q_info.third][d_info.third];
+                validity &= BitsetCS[q_info.fourth][d_info.fourth];
+                if (!validity) continue;
+                validity &= BitsetEdgeCS[q_info.third_edge_idx][d_info.third_edge_idx];
+                if (!validity) continue;
+                validity &= BitsetEdgeCS[q_info.fourth_edge_idx][d_info.fourth_edge_idx];
+                if (!validity) continue;
+                validity &= BitsetEdgeCS[q_info.opp_edge_idx][d_info.opp_edge_idx];
+                if (!validity) continue;
                 if (validity and q_info.one_three_idx != -1) validity &= EdgeCandidacy(q_info.one_three_idx, d_info.one_three_idx);
                 if (validity and q_info.two_four_idx != -1) validity &= EdgeCandidacy(q_info.two_four_idx, d_info.two_four_idx);
                 if (validity) {
@@ -391,12 +431,13 @@ namespace daf {
                     for (int data_edge_idx : data_->GetIncidentEdges(nxt_cand, cur_label)) {
                         Vertex cand = data_->opposite(data_edge_idx, nxt_cand);
                         if (data_->GetDegree(cand) < query_->GetDegree(cur)) break;
+                        if (num_visit_cs_[cand] < num_nxt) continue;
                         if (!BitsetEdgeCS[query_edge_idx][data_edge_idx]) {
                             continue;
                         }
                         if (!EdgeSafety(query_edge_idx, data_edge_idx)) {
                             BitsetEdgeCS[query_edge_idx][data_edge_idx] = false;
-                            BitsetEdgeCS[query_->opposite_edge[query_edge_idx]][data_->opposite_edge[data_edge_idx]] = false;
+//                            BitsetEdgeCS[query_->opposite_edge[query_edge_idx]][data_->opposite_edge[data_edge_idx]] = false;
                             continue;
                         }
                         if (num_visit_cs_[cand] == num_nxt) {
@@ -445,9 +486,6 @@ namespace daf {
         std::vector <int> CandidateIndex(data_->GetNumVertices());
         for (Size i = 0; i < query_->GetNumVertices(); ++i) {
             cs_edge_list_[i].resize(GetCandidateSetSize(i));
-            for (Size idx = 0; idx < GetCandidateSetSize(i); idx++) {
-                cs_adj_[{i, candidate_set_[i][idx]}] = (tsl::robin_map<Vertex, std::vector<Vertex>>());
-            }
         }
         Size CandidateSpaceSize = 0, CandidateEdges = 0;
         for (Size i = 0; i < query_->GetNumVertices(); ++i) {
@@ -479,17 +517,24 @@ namespace daf {
 //                            cs_edge_list_[uc_pair].insert(u_pair);
 
                             /* Add CS_ADJ_List; */
-                            cs_adj_[{u, v}][u_adj].emplace_back(v_adj);
+//                            cs_adj_[{u, v}][u_adj].emplace_back(v_adj);
                         }
                     }
                 }
             }
         }
-        for (auto &uPair : cs_adj_) {
-            for (auto &ucPair : uPair.second) {
-                auto &it = cs_adj_[uPair.first][ucPair.first];
+        cs_edge_.clear();
+        cs_edge_.resize(query_->GetNumVertices());
+        for (int u = 0; u < query_->GetNumVertices(); u++) {
+            cs_edge_[u].resize(GetCandidateSetSize(u));
+            for (Size idx = 0; idx < GetCandidateSetSize(u); idx++) {
+                auto &it = cs_edge_list_[u][idx];
                 std::sort(it.begin(), it.end());
                 it.erase(std::unique(it.begin(), it.end()), it.end());
+                cs_edge_[u][idx].resize(query_->GetNumVertices());
+                for (auto &i : it) {
+                    cs_edge_[u][idx][i.first].push_back(i.second);
+                }
             }
         }
 
@@ -563,14 +608,10 @@ namespace daf {
                 fprintf(stdout, "%d ", x);
             }
             fprintf(stdout, "\n");
-            for (int x : candidate_set_[i]) {
-                fprintf(stdout, "  CS Edges from %d\n",x);
-                for (auto it : cs_adj_[{i, x}]) {
-                    fprintf(stdout, "    Edge with [%d] : ",it.first);
-                    for (auto itt: it.second) {
-                        fprintf(stdout, "%d ", itt);
-                    }
-                    fprintf(stdout, "\n");
+            for (int j = 0; j < GetCandidateSetSize(i); j++) {
+                fprintf(stdout, "  CS Edges from %d\n", GetCandidate(i, j));
+                for (auto it : cs_edge_list_[i][j]) {
+                    fprintf(stdout, "    Edge with [%d, %d]\n",it.first, it.second);
                 }
             }
         }
