@@ -429,13 +429,13 @@ namespace daf {
 
 
     bool CandidateSpace::Filter(bool topdown) {
-        //auto CandSize = [this]() {
-        //    int totalCandidateSetSize = 0;
-        //    for (int i = 0; i < query_->GetNumVertices(); i++) {
-        //        totalCandidateSetSize += GetCandidateSetSize(i);
-        //    }
-        //    return totalCandidateSetSize;
-        //};
+        auto CandSize = [this]() {
+            int totalCandidateSetSize = 0;
+            for (int i = 0; i < query_->GetNumVertices(); i++) {
+                totalCandidateSetSize += GetCandidateSetSize(i);
+            }
+            return totalCandidateSetSize;
+        };
         //int cand_sz = CandSize();
         //fprintf(stderr, "Initial CS SIZE = %d\n",cand_sz);
         std::vector<int> local_stage(query_->GetNumVertices(), 0);
@@ -456,40 +456,34 @@ namespace daf {
             current_stage++;
             queue_pop_count++;
             //fprintf(stderr, "Got vertex %d to reduce... Candidate Size of stage %d : %d\n",cur, current_stage, CandSize());
-            Label cur_label = query_->GetLabel(cur);
-            QueryDegree num_nxt = 0;
 
-            for (Vertex nxt : query_->adj_list[cur]) {
-                int query_edge_idx = query_->GetEdgeIndex(nxt, cur);
-                for (Vertex nxt_cand : candidate_set_[nxt]) {
-                    for (int data_edge_idx : data_->GetIncidentEdges(nxt_cand, cur_label)) {
-                        Vertex cand = data_->opposite(data_edge_idx, nxt_cand);
-                        if (data_->GetDegree(cand) < query_->GetDegree(cur)) break;
-                        if (num_visit_cs_[cand] < num_nxt) continue;
+            int bef_cand_size = candidate_set_[cur].size();
+            for (int i = 0; i < candidate_set_[cur].size(); i++) {
+                Vertex cand = candidate_set_[cur][i];
+                bool valid = true;
+                for (int query_edge_idx : query_->all_incident_edges_[cur]) {
+                    int nxt = query_->to_[query_edge_idx];
+                    int nxt_label = query_->GetLabel(nxt);
+                    bool found = false;
+                    for (int data_edge_idx : data_->GetIncidentEdges(cand, nxt_label)) {
+                        Vertex nxt_cand = data_->to_[data_edge_idx];
+                        if (data_->GetDegree(nxt_cand) < query_->GetDegree(nxt)) break;
+                        if (!BitsetCS[nxt][nxt_cand]) continue;
                         if (!BitsetEdgeCS[query_edge_idx][data_edge_idx]) {
                             continue;
                         }
                         if (!EdgeSafety(query_edge_idx, data_edge_idx)) {
                             BitsetEdgeCS[query_edge_idx][data_edge_idx] = false;
-//                            BitsetEdgeCS[query_->opposite_edge[query_edge_idx]][data_->opposite_edge[data_edge_idx]] = false;
                             continue;
                         }
-                        if (num_visit_cs_[cand] == num_nxt) {
-                            num_visit_cs_[cand] += 1;
-                            if (num_nxt == 0) {
-                                visited_candidates_[num_visited_candidates] = cand;
-                                num_visited_candidates += 1;
-                            }
-                        }
+                        found = true;
+//                        break;
+                    }
+                    if (!found) {
+                        valid = false;
+                        break;
                     }
                 }
-                num_nxt += 1;
-            }
-            int bef_cand_size = candidate_set_[cur].size();
-
-            for (Size i = 0; i < candidate_set_[cur].size(); ++i) {
-                Vertex cand = candidate_set_[cur][i];
-                bool valid = (num_visit_cs_[cand] == num_nxt);
                 if (valid) valid = BipartiteSafety(cur, cand);
                 if (!valid) {
                     candidate_set_[cur][i] = candidate_set_[cur].back();
@@ -504,10 +498,6 @@ namespace daf {
                 exit(2);
             }
 
-            while (num_visited_candidates > 0) {
-                num_visited_candidates -= 1;
-                num_visit_cs_[visited_candidates_[num_visited_candidates]] = 0;
-            }
             int aft_cand_size = candidate_set_[cur].size();
             if (aft_cand_size == bef_cand_size) {
                 priority[cur] = 0;
@@ -517,8 +507,6 @@ namespace daf {
             priority[cur] = 0;
             //fprintf(stderr, "Reduced CS[%d] from %d to %d\n",cur,bef_cand_size,aft_cand_size);
             for (Vertex nxt : query_->adj_list[cur]) {
-
-
                 priority[nxt] = 1 - (1 - out_prob) * (1 - priority[nxt]);
                 if (priority[nxt] < 0.1) continue;
                 local_stage[nxt] = current_stage;
@@ -560,6 +548,7 @@ namespace daf {
 
                         if (data_->GetDegree(v) < u_degree) break;
                         if (!BitsetEdgeCS[query_edge_idx][data_edge_idx]) continue;
+                        if (!EdgeSafety(query_edge_idx, data_edge_idx)) continue;
                         if (BitsetCS[u][v]){
                             CandidateEdges++;
                             Size v_idx = CandidateIndex[v];
