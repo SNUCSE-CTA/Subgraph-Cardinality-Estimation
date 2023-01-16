@@ -118,6 +118,7 @@ namespace daf {
                 for (Vertex parent_cand : candidate_set_[parent]) {
                     for (int data_edge_idx : data_->GetIncidentEdges(parent_cand, cur_label)) {
                         Vertex cand = data_->opposite(data_edge_idx, parent_cand);
+                        if (num_visit_cs_[cand] < num_parent) continue;
                         if (data_->GetDegree(cand) < query_->GetDegree(cur)) continue;
                         if (data_->GetELabel(data_edge_idx) != query_->GetELabel(query_edge_idx)) continue;
                         if (num_visit_cs_[cand] == num_parent) {
@@ -425,7 +426,6 @@ namespace daf {
             return priority < o.priority;
         }
     };
-    
 
     bool CandidateSpace::Filter(bool topdown) {
         //auto CandSize = [this]() {
@@ -451,7 +451,6 @@ namespace daf {
             auto [pri, stage, cur] = candidate_queue.top();
             candidate_queue.pop();
             if (stage < local_stage[cur]) continue;
-            
             current_stage++;
             queue_pop_count++;
             //fprintf(stderr, "Got vertex %d to reduce... Candidate Size of stage %d : %d\n",cur, current_stage, CandSize());
@@ -516,7 +515,6 @@ namespace daf {
             priority[cur] = 0;
             //fprintf(stderr, "Reduced CS[%d] from %d to %d\n",cur,bef_cand_size,aft_cand_size);
             for (Vertex nxt : query_->adj_list[cur]) {
-                
 
                 priority[nxt] = 1 - (1 - out_prob) * (1 - priority[nxt]);
                 if (priority[nxt] < 0.1) continue;
@@ -525,7 +523,6 @@ namespace daf {
                 candidate_queue.push({priority[nxt], current_stage, nxt});
             }
         }
-        
         return true;
     }
 
