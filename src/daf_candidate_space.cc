@@ -118,6 +118,7 @@ namespace daf {
                 for (Vertex parent_cand : candidate_set_[parent]) {
                     for (int data_edge_idx : data_->GetIncidentEdges(parent_cand, cur_label)) {
                         Vertex cand = data_->opposite(data_edge_idx, parent_cand);
+                        if (num_visit_cs_[cand] < num_parent) continue;
                         if (data_->GetDegree(cand) < query_->GetDegree(cur)) continue;
                         if (data_->GetELabel(data_edge_idx) != query_->GetELabel(query_edge_idx)) continue;
                         if (num_visit_cs_[cand] == num_parent) {
