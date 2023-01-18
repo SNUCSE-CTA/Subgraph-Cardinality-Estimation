@@ -97,6 +97,7 @@ namespace daf {
         bool FourCycleSafety(int query_edge_id, int data_edge_id);
         bool FourCycleSafetyOnline(int query_edge_id, int data_edge_id);
 
+        bool BipartiteEdgeSafety(Vertex cur, Vertex cand, Vertex nxt, Vertex nxt_cand);
     };
 
     inline Size CandidateSpace::GetCandidateSetSize(Vertex u) const {

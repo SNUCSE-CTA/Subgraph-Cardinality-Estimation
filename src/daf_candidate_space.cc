@@ -183,10 +183,14 @@ namespace daf {
             return false;
         }
         BPSolver.reset();
-        for (int i = 0; i < query_->adj_list[cur].size(); i++) {
-            Vertex uc = query_->adj_list[cur][i];
-            int query_edge_index = query_->GetEdgeIndex(cur, uc);
-            int j = 0;
+//        for (int i = 0; i < query_->adj_list[cur].size(); i++) {
+//            Vertex uc = query_->adj_list[cur][i];
+//            int query_edge_index = query_->GetEdgeIndex(cur, uc);
+//            j = 0;
+        int i = 0, j = 0;
+        for (int query_edge_index : query_->all_incident_edges_[cur]) {
+            Vertex uc = query_->opposite(query_edge_index, cur);
+            j = 0;
             for (int edge_id : data_->all_incident_edges_[cand]) {
                 Vertex vc = data_->opposite(edge_id, cand);
                 if (BitsetCS[uc][vc] and BitsetEdgeCS[query_edge_index][edge_id]) {
@@ -194,6 +198,7 @@ namespace daf {
                 }
                 j++;
             }
+            i++;
         }
         bool ok = (BPSolver.solve() == (query_->GetDegree(cur)));
 #ifdef TIME_CHECK
@@ -205,6 +210,31 @@ namespace daf {
 #endif
     }
 
+
+    bool CandidateSpace::BipartiteEdgeSafety(Vertex cur, Vertex cand, Vertex nxt, Vertex nxt_cand) {
+        BPSolver.reset();
+        int i = 0, j = 0;
+        for (int query_edge_index : query_->all_incident_edges_[cur]) {
+            Vertex uc = query_->opposite(query_edge_index, cur);
+            j = 0;
+            for (int edge_id : data_->all_incident_edges_[cand]) {
+                Vertex vc = data_->opposite(edge_id, cand);
+                if (uc == nxt) {
+                    if (vc == nxt_cand)
+                        BPSolver.add_edge(i, j);
+                }
+                else {
+                    if (BitsetCS[uc][vc] and BitsetEdgeCS[query_edge_index][edge_id]) {
+                        BPSolver.add_edge(i, j);
+                    }
+                }
+                j++;
+            }
+            i++;
+        }
+        bool ok = (BPSolver.solve() == (query_->GetDegree(cur)));
+        return ok;
+    }
     Size CandidateSpace::GetDAGNextCount(Vertex cur, bool topdown) {
         return topdown? dag_->GetNumParents(cur) : dag_->GetNumChildren(cur);
     }
@@ -400,7 +430,8 @@ namespace daf {
     bool CandidateSpace::EdgeSafety(int query_edge_id, int data_edge_id) {
         // triangle filter
         if (is_data_sparse and !query_->trig_empty[query_edge_id]) {
-            if (!TriangleSafety(query_edge_id, data_edge_id)) return false;
+            if (!TriangleSafety(query_edge_id, data_edge_id))
+                return false;
         }
 #ifdef FOURCYCLE_SAFETY
 #ifdef TIME_CHECK
@@ -463,6 +494,36 @@ namespace daf {
                     int nxt = query_->to_[query_edge_idx];
                     int nxt_label = query_->GetLabel(nxt);
                     bool found = false;
+                    /*
+                    if (is_data_sparse and !query_->trig_empty[query_edge_idx]) {
+                        for (int data_edge_idx : data_->GetIncidentEdges(cand, nxt_label)) {
+                            Vertex nxt_cand = data_->to_[data_edge_idx];
+                            if (data_->GetDegree(nxt_cand) < query_->GetDegree(nxt)) break;
+                            if (!BitsetCS[nxt][nxt_cand]) continue;
+                            if (!BitsetEdgeCS[query_edge_idx][data_edge_idx]) {
+                                continue;
+                            }
+                            if (!TriangleSafety(query_edge_idx, data_edge_idx)) {
+                                BitsetEdgeCS[query_edge_idx][data_edge_idx] = false;
+                                continue;
+                            }
+                        }
+                    }
+                    if (is_data_sparse and !query_->quad_empty[query_edge_idx]) {
+                        for (int data_edge_idx : data_->GetIncidentEdges(cand, nxt_label)) {
+                            Vertex nxt_cand = data_->to_[data_edge_idx];
+                            if (data_->GetDegree(nxt_cand) < query_->GetDegree(nxt)) break;
+                            if (!BitsetCS[nxt][nxt_cand]) continue;
+                            if (!BitsetEdgeCS[query_edge_idx][data_edge_idx]) {
+                                continue;
+                            }
+                            if (!FourCycleSafety(query_edge_idx, data_edge_idx)) {
+                                BitsetEdgeCS[query_edge_idx][data_edge_idx] = false;
+                                continue;
+                            }
+                        }
+                    }
+                     */
                     for (int data_edge_idx : data_->GetIncidentEdges(cand, nxt_label)) {
                         Vertex nxt_cand = data_->to_[data_edge_idx];
                         if (data_->GetDegree(nxt_cand) < query_->GetDegree(nxt)) break;
@@ -470,8 +531,13 @@ namespace daf {
                         if (!BitsetEdgeCS[query_edge_idx][data_edge_idx]) {
                             continue;
                         }
+//                        if (!BipartiteEdgeSafety(cur, cand, nxt, nxt_cand)) {
+//                            BitsetEdgeCS[query_edge_idx][data_edge_idx] = false;
+//                            continue;
+//                        }
                         if (!EdgeSafety(query_edge_idx, data_edge_idx)) {
                             BitsetEdgeCS[query_edge_idx][data_edge_idx] = false;
+                            BitsetEdgeCS[query_->opposite_edge[query_edge_idx]][data_->opposite_edge[data_edge_idx]] = false;
                             continue;
                         }
                         found = true;
