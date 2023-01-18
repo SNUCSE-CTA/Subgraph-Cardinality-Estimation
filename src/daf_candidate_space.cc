@@ -14,6 +14,7 @@ namespace daf {
     bool is_data_sparse = true;
 
     BipartiteMaximumMatching BPSolver, BPTSolver;
+    int temporary_left[1000];
 
     CandidateSpace::CandidateSpace(DataGraph *data) {
         data_ = data;
@@ -466,8 +467,9 @@ namespace daf {
             }
             return totalCandidateSetSize;
         };
-        //int cand_sz = CandSize();
-        //fprintf(stderr, "Initial CS SIZE = %d\n",cand_sz);
+        int cand_sz = CandSize();
+        fprintf(stderr, "Initial CS SIZE = %d\n",cand_sz);
+
         std::vector<int> local_stage(query_->GetNumVertices(), 0);
         std::vector<double> priority(query_->GetNumVertices(), 0.5);
 
@@ -484,46 +486,20 @@ namespace daf {
             if (stage < local_stage[cur]) continue;
             current_stage++;
             queue_pop_count++;
-            //fprintf(stderr, "Got vertex %d to reduce... Candidate Size of stage %d : %d\n",cur, current_stage, CandSize());
 
             int bef_cand_size = candidate_set_[cur].size();
+//            fprintf(stderr, "Got vertex %d to reduce... Candidate Size of Vertex %d at "
+//                            "stage %d : %d\n",cur, cur, current_stage, bef_cand_size);
             for (int i = 0; i < candidate_set_[cur].size(); i++) {
                 Vertex cand = candidate_set_[cur][i];
                 bool valid = true;
+                int ii = 0, jj = 0;
+
+                // 3, 4 Cycle Filter
                 for (int query_edge_idx : query_->all_incident_edges_[cur]) {
                     int nxt = query_->to_[query_edge_idx];
                     int nxt_label = query_->GetLabel(nxt);
                     bool found = false;
-                    /*
-                    if (is_data_sparse and !query_->trig_empty[query_edge_idx]) {
-                        for (int data_edge_idx : data_->GetIncidentEdges(cand, nxt_label)) {
-                            Vertex nxt_cand = data_->to_[data_edge_idx];
-                            if (data_->GetDegree(nxt_cand) < query_->GetDegree(nxt)) break;
-                            if (!BitsetCS[nxt][nxt_cand]) continue;
-                            if (!BitsetEdgeCS[query_edge_idx][data_edge_idx]) {
-                                continue;
-                            }
-                            if (!TriangleSafety(query_edge_idx, data_edge_idx)) {
-                                BitsetEdgeCS[query_edge_idx][data_edge_idx] = false;
-                                continue;
-                            }
-                        }
-                    }
-                    if (is_data_sparse and !query_->quad_empty[query_edge_idx]) {
-                        for (int data_edge_idx : data_->GetIncidentEdges(cand, nxt_label)) {
-                            Vertex nxt_cand = data_->to_[data_edge_idx];
-                            if (data_->GetDegree(nxt_cand) < query_->GetDegree(nxt)) break;
-                            if (!BitsetCS[nxt][nxt_cand]) continue;
-                            if (!BitsetEdgeCS[query_edge_idx][data_edge_idx]) {
-                                continue;
-                            }
-                            if (!FourCycleSafety(query_edge_idx, data_edge_idx)) {
-                                BitsetEdgeCS[query_edge_idx][data_edge_idx] = false;
-                                continue;
-                            }
-                        }
-                    }
-                     */
                     for (int data_edge_idx : data_->GetIncidentEdges(cand, nxt_label)) {
                         Vertex nxt_cand = data_->to_[data_edge_idx];
                         if (data_->GetDegree(nxt_cand) < query_->GetDegree(nxt)) break;
@@ -531,10 +507,6 @@ namespace daf {
                         if (!BitsetEdgeCS[query_edge_idx][data_edge_idx]) {
                             continue;
                         }
-//                        if (!BipartiteEdgeSafety(cur, cand, nxt, nxt_cand)) {
-//                            BitsetEdgeCS[query_edge_idx][data_edge_idx] = false;
-//                            continue;
-//                        }
                         if (!EdgeSafety(query_edge_idx, data_edge_idx)) {
                             BitsetEdgeCS[query_edge_idx][data_edge_idx] = false;
                             BitsetEdgeCS[query_->opposite_edge[query_edge_idx]][data_->opposite_edge[data_edge_idx]] = false;
@@ -548,7 +520,81 @@ namespace daf {
                         break;
                     }
                 }
-                if (valid) valid = BipartiteSafety(cur, cand);
+                if (!valid) goto remove_vertex_;
+                if (query_->adj_list[cur].size() == 1) goto remove_vertex_;
+                // Edge-Bipartite
+                BPSolver.reset();
+                // add all edges
+                for (int query_edge_index : query_->all_incident_edges_[cur]) {
+                    Vertex uc = query_->opposite(query_edge_index, cur);
+//                    printf("Neighbor %d of %d is %dth neighbor\n",uc,cur,ii);
+                    jj = 0;
+                    for (int edge_id : data_->all_incident_edges_[cand]) {
+                        Vertex vc = data_->opposite(edge_id, cand);
+                        if (data_->GetDegree(vc) < query_->GetDegree(uc)) break;
+//                        printf("Neighbor %d of %d is %dth neighbor\n",vc,cand,jj);
+                        if (BitsetCS[uc][vc] and BitsetEdgeCS[query_edge_index][edge_id]) {
+                            BPSolver.add_edge(ii, jj);
+                        }
+                        jj++;
+                    }
+                    ii++;
+                }
+                ii = 0;
+                for (int query_edge_idx : query_->all_incident_edges_[cur]) {
+                    int nxt = query_->to_[query_edge_idx];
+                    bool found = false;
+
+                    BPSolver.reset(false);
+                    if (BPSolver.solve(ii) < query_->adj_list[cur].size() - 1) {
+                        valid = false;
+                        break;
+                    }
+                    jj = -1;
+                    std::memcpy(temporary_left, BPSolver.left, sizeof(int) * BPSolver.left_len);
+                    for (int data_edge_idx : data_->all_incident_edges_[cand]) {
+                        Vertex nxt_cand = data_->to_[data_edge_idx];
+                        jj++;
+                        if (data_->GetDegree(nxt_cand) < query_->GetDegree(nxt)) break;
+                        if (!BitsetCS[nxt][nxt_cand]) continue;
+//                        if (!BitsetEdgeCS[query_->opposite_edge[query_edge_idx]][data_->opposite_edge[data_edge_idx]]) {
+//                            BitsetEdgeCS[query_edge_idx][data_edge_idx] = false;
+//                        }
+                        if (!BitsetEdgeCS[query_edge_idx][data_edge_idx]) {
+                            continue;
+                        }
+//                        printf("Checking Bipartite Matching with %d-%d fixed from (%d, %d)\n",nxt,nxt_cand,cur,cand);
+                        if (BPSolver.right[jj] == -1) {
+//                            printf("Right[%d] = -1! ok\n",jj);
+                            found = true;
+                            continue;
+                        }
+                        std::memset(BPSolver.used, false, sizeof(bool) * query_->adj_list[cur].size());
+                        BPSolver.used[ii] = true;
+//                        printf("ii = %d(%d), jj = %d(%d), DFS[%d]...\n",
+//                               ii,query_->to_[query_->all_incident_edges_[cur][ii]],
+//                               jj,data_->to_[data_->all_incident_edges_[cand][jj]],BPSolver.right[jj]);
+//                        BPSolver.print();
+                        if (BPSolver.single_dfs(BPSolver.right[jj])) {
+//                            printf("DFS[%d]...\n",BPSolver.right[jj]);
+                            found = true;
+                        }
+                        else {
+//                            printf("Edge %d-%d is dead\n",query_edge_idx, data_edge_idx);
+//                            printf("%d-%d to %d-%d\n",cur, nxt, cand, nxt_cand);
+                            BitsetEdgeCS[query_edge_idx][data_edge_idx] = false;
+//                            BitsetEdgeCS[query_->opposite_edge[query_edge_idx]][data_->opposite_edge[data_edge_idx]] = false;
+                        }
+                    }
+                    if (!found) {
+//                        printf("NO valid EdgeBP! [%d, %d] dead\n",cur,cand);
+                        valid = false;
+                        break;
+                    }
+                    found = false;
+                    ii++;
+                }
+                remove_vertex_:
                 if (!valid) {
                     candidate_set_[cur][i] = candidate_set_[cur].back();
                     candidate_set_[cur].pop_back();
@@ -558,8 +604,12 @@ namespace daf {
             }
 
             if (candidate_set_[cur].empty()) {
-                fprintf(stderr, "FOUND INVALID %u\n",cur);
-                exit(2);
+                counters[191]++;
+                if (counters[191] == 1) {
+                    fprintf(stderr, "FOUND INVALID %u\n",cur);
+                    exit(2);
+                }
+                return true;
             }
 
             int aft_cand_size = candidate_set_[cur].size();
@@ -569,7 +619,7 @@ namespace daf {
             }
             double out_prob = 1 - aft_cand_size * 1.0 / bef_cand_size;
             priority[cur] = 0;
-            //fprintf(stderr, "Reduced CS[%d] from %d to %d\n",cur,bef_cand_size,aft_cand_size);
+//            fprintf(stderr, "Reduced CS[%d] from %d to %d\n",cur,bef_cand_size,aft_cand_size);
             for (Vertex nxt : query_->adj_list[cur]) {
                 priority[nxt] = 1 - (1 - out_prob) * (1 - priority[nxt]);
                 if (priority[nxt] < 0.1) continue;
@@ -658,6 +708,14 @@ namespace daf {
         double vert_cand_avg = (1.0*CandidateSpaceSize)/query_->GetNumVertices();
         fprintf(stdout, "#AVG_VERT_CAND_SIZE : %.02lf\n", vert_cand_avg);
         fprintf(stdout, "#AVG_EDGE_BTW_CANDS : %.02lf\n", (1.0*CandidateEdges)/query_->GetNumEdges()/vert_cand_avg);
+////        printCS();
+//        for (int i = 0; i < query_->GetNumVertices(); i++) {
+//            fprintf(stdout, "Query [%d] : CS Size = %lu\n", i,candidate_set_[i].size());
+////            for (int x: candidate_set_[i]) {
+////                fprintf(stdout, "%d ", x);
+////            }
+////            fprintf(stdout, "\n");
+//        }
     }
 
     bool CandidateSpace::InitRootCandidates() {

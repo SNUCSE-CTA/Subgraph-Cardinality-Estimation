@@ -57,7 +57,8 @@ void estimate(DataGraph &data, QueryGraph &query) {
     for (auto u = 0; u < query.GetNumVertices(); ++u) {
         if (TSSolver->CS->GetCandidateSetSize(u) == 0) {
             std::cout << "Total time: " << total_timer.GetTime() << " ms\n";
-            exit(1);
+//            exit(1);
+            return;
         }
     }
     sample_timer.Start();
