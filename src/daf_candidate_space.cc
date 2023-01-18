@@ -661,7 +661,8 @@ namespace daf {
 
                         if (data_->GetDegree(v) < u_degree) break;
                         if (!BitsetEdgeCS[query_edge_idx][data_edge_idx]) continue;
-                        if (!EdgeSafety(query_edge_idx, data_edge_idx)) continue;
+//                        if (!BitsetEdgeCS[query_->opposite_edge[query_edge_idx]][data_->opposite_edge[data_edge_idx]]) continue;
+//                        if (!EdgeSafety(query_edge_idx, data_edge_idx)) continue;
                         if (BitsetCS[u][v]){
                             CandidateEdges++;
                             Size v_idx = CandidateIndex[v];
