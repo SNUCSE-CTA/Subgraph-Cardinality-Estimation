@@ -97,20 +97,34 @@ struct BipartiteMaximumMatching {
         delete[] adj;
         delete[] adj_size;
     }
-    void reset() const {
+    void reset(bool reset_edges = true) const {
         std::memset(left, -1, sizeof(int) * left_len);
         std::memset(right, -1, sizeof(int) * right_len);
         std::memset(used, false, sizeof(bool) * left_len);
-        std::memset(adj_size, 0, sizeof(int) * left_len);
+        if (reset_edges) {
+            std::memset(adj_size, 0, sizeof(int) * left_len);
+        }
     }
     void add_edge(int u, int v) {
         adj[u][adj_size[u]++] = v;
     }
+    void revert(int *tmp_left) {
+        for (int i = 0; i < left_len; i++) {
+            if (left[i] == -1) continue;
+            right[left[i]] = -1;
+        }
+        std::memcpy(left, tmp_left, sizeof(int) * left_len);
+        for (int i = 0; i < left_len; i++) {
+            if (left[i] == -1) continue;
+            right[left[i]] = i;
+        }
+    }
     // Time: O( V(V+E) )
-    int solve() {
+    int solve(int ignore = -1) {
         std::memset(left, -1, sizeof(int) * left_len);
         int ans = 0;
         for (Vertex u = 0; u < left_len; u++) {
+            if (u == ignore) continue;
             if (left[u] == -1) {
                 std::memset(used, false, sizeof(bool) * left_len);
                 if (dfs(u))
@@ -133,6 +147,27 @@ struct BipartiteMaximumMatching {
             }
         }
         return false;
+    }
+
+    bool single_dfs(Vertex r) {
+//        printf("Single_DFS %d\n",r);
+        if (used[r]) return false;
+        used[r] = true;
+        for (int i = 0; i < adj_size[r]; i++) {
+            Vertex c = adj[r][i];
+            Vertex k = right[c];
+            if (k == -1 or single_dfs(k)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    void print() {
+        for (int i = 0; i < left_len; i++) {
+            printf("%d[%d]\t",left[i],used[i]);
+        }
+        printf("\n");
     }
 };
 //
