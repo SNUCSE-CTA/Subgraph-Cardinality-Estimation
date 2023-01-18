@@ -17,8 +17,8 @@ using namespace daf;
 
 std::string dataset, ans_file_name, data_root;
 //std::string dataset = "hprd", ans_file_name = dataset+"_ans", data_root = "../dataset/";
-std::string data_name = "../../dataset/hprd/data_graph/hprd.graph";
-std::string query_name = "../../dataset/hprd/query_graph/query_dense_24_71.graph";
+std::string data_name = "../../dataset/wordnet/data_graph/wordnet.graph";
+std::string query_name = "../../dataset/wordnet/query_graph/query_dense_12_100.graph";
 //std::string data_name = "../../dataset/yeast/data_graph/yeast.graph";
 //std::string query_name = "../../dataset/yeast/query_graph/query_dense_8_120.graph";
 std::deque<std::string> query_names = {

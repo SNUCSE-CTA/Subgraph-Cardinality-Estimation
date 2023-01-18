@@ -198,6 +198,9 @@ void DataGraph::LoadAndProcessGraph() {
                 return adj_list[opp_a].size() > adj_list[opp_b].size();
             });
         }
+        std::sort(all_incident_edges_[i].begin(), all_incident_edges_[i].end(), [this](auto &a, auto &b) -> bool {
+            return adj_list[to_[a]].size() > adj_list[to_[b]].size();
+        });
     }
 
 
