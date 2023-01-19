@@ -583,7 +583,7 @@ namespace daf {
 //                            printf("Edge %d-%d is dead\n",query_edge_idx, data_edge_idx);
 //                            printf("%d-%d to %d-%d\n",cur, nxt, cand, nxt_cand);
                             BitsetEdgeCS[query_edge_idx][data_edge_idx] = false;
-//                            BitsetEdgeCS[query_->opposite_edge[query_edge_idx]][data_->opposite_edge[data_edge_idx]] = false;
+                            BitsetEdgeCS[query_->opposite_edge[query_edge_idx]][data_->opposite_edge[data_edge_idx]] = false;
                         }
                     }
                     if (!found) {
@@ -661,7 +661,7 @@ namespace daf {
 
                         if (data_->GetDegree(v) < u_degree) break;
                         if (!BitsetEdgeCS[query_edge_idx][data_edge_idx]) continue;
-//                        if (!BitsetEdgeCS[query_->opposite_edge[query_edge_idx]][data_->opposite_edge[data_edge_idx]]) continue;
+                        if (!BitsetEdgeCS[query_->opposite_edge[query_edge_idx]][data_->opposite_edge[data_edge_idx]]) continue;
 //                        if (!EdgeSafety(query_edge_idx, data_edge_idx)) continue;
                         if (BitsetCS[u][v]){
                             CandidateEdges++;
