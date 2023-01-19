@@ -49,6 +49,7 @@ void Graph::LoadRoughGraph(std::vector<std::vector<Vertex>> *graph) {
     std::string line;
     // preprocessing
     Label max_vertex_label_ = 0;
+    int num_lines = 0;
     while (getline(fin_, line)) {
         auto tok = parse(line, " ");
         type = tok[0];
@@ -79,6 +80,10 @@ void Graph::LoadRoughGraph(std::vector<std::vector<Vertex>> *graph) {
                 el = std::stoi(tok.front()); tok.pop_front();
             }
             edge_labels_[{v1, v2}] = edge_labels_[{v2, v1}] = el;
+        }
+        num_lines++;
+        if (num_lines % 100000 == 0) {
+            std::cerr << "Loaded " << num_lines << " lines." << std::endl;
         }
     }
 
