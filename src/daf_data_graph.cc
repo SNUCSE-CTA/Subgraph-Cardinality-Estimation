@@ -209,7 +209,7 @@ void DataGraph::LoadAndProcessGraph() {
     std::cout << "Incidence_ok! : ";
     if (is_sparse()) {
         num_labeled_triangles_.resize(edge_id, std::vector<int>(GetNumLabels()));
-        trigvertex.resize(edge_id, tsl::hopscotch_map<int, std::pair<int, int>>());
+        trigvertex.resize(edge_id);
         edge_num_neighbors.resize(edge_info_.size(), std::vector<int>(GetNumLabels(), 0));
         std::cout << "Working on triangles...." << std::endl;
         std::vector<int> common_neighbor(GetNumVertices(), -1);

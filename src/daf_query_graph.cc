@@ -93,7 +93,7 @@ bool QueryGraph::ProcessLabeledGraph(const DataGraph &data) {
     edge_num_neighbors.resize(edge_info_.size(), std::vector<int>(data.GetNumLabels(), 0));
     four_cycles.resize(edge_info_.size());
     triangles.resize(edge_id, std::vector<Vertex>());
-    trigvertex.resize(edge_id, tsl::hopscotch_map<int, std::pair<int, int>>());
+    trigvertex.resize(edge_id);
 
     Size num_four_cycles = 0;
     Size num_three_cycles = 0;

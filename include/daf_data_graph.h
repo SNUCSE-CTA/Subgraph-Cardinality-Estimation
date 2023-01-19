@@ -66,7 +66,7 @@ public:
 
     inline bool CheckAllNbrLabelExist(Vertex v, uint64_t *nbr_bitset) const;
 
-    std::vector<tsl::hopscotch_map<int, std::pair<int, int>>> trigvertex;
+    std::vector<std::unordered_map<int, std::pair<int, int>>> trigvertex;
 
 
     bool is_sparse();

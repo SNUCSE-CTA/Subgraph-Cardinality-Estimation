@@ -11,10 +11,6 @@
 #include <istream>
 #include <fstream>
 #include <boost/functional/hash.hpp>
-#include "include/tsl/robin_set.h"
-#include "include/tsl/robin_map.h"
-#include "include/tsl/hopscotch_set.h"
-#include "include/tsl/hopscotch_map.h"
 #include "global/log.h"
 
 static int functionCallCounter;

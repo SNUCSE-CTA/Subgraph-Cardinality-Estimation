@@ -4,8 +4,6 @@
 #include <vector>
 #include <random>
 
-#include "include/tsl/hopscotch_set.h"
-#include "include/tsl/hopscotch_map.h"
 #include "global/global.h"
 #include "include/daf_dag.h"
 #include "include/daf_data_graph.h"
