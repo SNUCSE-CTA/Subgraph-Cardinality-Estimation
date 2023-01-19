@@ -55,7 +55,7 @@ namespace daf {
             int d_third_edge_idx, d_fourth_edge_idx; // tex = 2->3, fex = 1->4
             int d_opp_edge_idx; // 3->4
         };
-        tsl::robin_map<std::pair<int, int>, std::vector<online_cycle_information>> four_cycle_memo_old;
+        std::unordered_map<std::pair<int, int>, std::vector<online_cycle_information>> four_cycle_memo_old;
 
         bool **BitsetCS;
         bool **BitsetEdgeCS;

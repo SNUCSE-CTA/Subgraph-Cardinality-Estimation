@@ -32,7 +32,7 @@ public:
 
     std::vector<bool> seen_, query_seen_;
 //    std::vector<std::unordered_map<Vertex, double>> num_trees_;
-    std::vector<tsl::robin_map<Vertex, double>> num_trees_;
+    std::vector<std::unordered_map<Vertex, double>> num_trees_;
     std::vector<std::vector<std::vector<std::vector<Vertex>>>> sample_candidates_;
     std::vector<std::vector<std::vector<std::vector<double>>>> sample_candidate_weights_;
     std::vector<std::vector<std::vector<std::discrete_distribution<int>>>> sample_dist_;

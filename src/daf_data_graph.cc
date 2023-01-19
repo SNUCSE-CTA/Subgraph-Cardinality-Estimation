@@ -156,12 +156,12 @@ void DataGraph::LoadAndProcessGraph() {
     for (auto &it : adj_list) {
         std::sort(it.begin(), it.end());
     }
-
     all_incident_edges_.resize(num_vertex_);
     incident_edges_.resize(num_vertex_);
     for (int i = 0; i < GetNumVertices(); i++) {
         incident_edges_[i].resize(GetNumLabels());
     }
+    std::cout << "Edge Information Processing" << std::endl;
     int edge_id = 0;
     for (int i = 0; i < GetNumVertices(); i++) {
         for (int neighbor : adj_list[i]) {
@@ -189,6 +189,8 @@ void DataGraph::LoadAndProcessGraph() {
         auto p = edge_info_[i].vp;
         opposite_edge[i] = edge_exists[p.second][p.first];
     }
+
+    std::cout << "Sorting All Edges..." << std::endl;
     for (int i = 0; i < GetNumVertices(); i++) {
         for (auto &vec : incident_edges_[i]) {
             std::sort(vec.begin(), vec.end(),[this, i](auto &a, auto &b) -> bool {
