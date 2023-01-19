@@ -31,6 +31,7 @@ void Graph::LoadRoughGraph(std::vector<std::vector<Vertex>> *graph) {
         std::cerr << "Graph file " << filename_ << " not found!\n";
         exit(EXIT_FAILURE);
     }
+    std::cerr << "Start reading graph file from " << filename_ << std::endl;
 
     Size v, e;
     std::string type;

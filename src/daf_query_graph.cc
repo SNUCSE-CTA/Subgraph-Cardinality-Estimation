@@ -85,11 +85,9 @@ bool QueryGraph::ProcessLabeledGraph(const DataGraph &data) {
     }
 
     opposite_edge.resize(edge_id);
-    for (int i = 0; i < GetNumLabels(); i++) {
-        for (auto &eid : all_incident_edges_[i]) {
-            int to = edge_info_[eid].to;
-            opposite_edge[eid] = edge_exists[to][i];
-        }
+    for (int i = 0; i < edge_id; i++) {
+        auto p = edge_info_[i].vp;
+        opposite_edge[i] = edge_exists[p.second][p.first];
     }
 
     edge_num_neighbors.resize(edge_info_.size(), std::vector<int>(data.GetNumLabels(), 0));
