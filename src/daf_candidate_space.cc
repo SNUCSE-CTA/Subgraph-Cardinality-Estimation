@@ -31,6 +31,8 @@ namespace daf {
         num_visit_cs_ = new QueryDegree[data_->GetNumVertices()];
         visited_candidates_ = new Vertex[data_->GetNumVertices() * MAX_QUERY_VERTEX];
         candidate_set_.resize(MAX_QUERY_VERTEX);
+
+
         is_data_sparse = data_->is_sparse();
     }
 
@@ -162,6 +164,7 @@ namespace daf {
         return result;
     }
 
+    /* Legacy code ---- */
     bool CandidateSpace::BipartiteSafety(Vertex cur, Vertex cand) {
 #ifdef BIPARTITE_SAFETY
 #ifdef TIME_CHECK
@@ -211,8 +214,6 @@ namespace daf {
         return true;
 #endif
     }
-
-
     bool CandidateSpace::BipartiteEdgeSafety(Vertex cur, Vertex cand, Vertex nxt, Vertex nxt_cand) {
         BPSolver.reset();
         int i = 0, j = 0;
@@ -243,6 +244,7 @@ namespace daf {
     Vertex CandidateSpace::GetDAGNextVertex(Vertex cur, Size idx, bool topdown) {
         return topdown? dag_->GetParent(cur, idx) : dag_->GetChild(cur, idx);
     }
+    /* ---- Legacy code */
 
     inline bool CandidateSpace::EdgeCandidacy(int query_edge_id, int data_edge_id) {
         if (query_edge_id == -1 || data_edge_id == -1) {

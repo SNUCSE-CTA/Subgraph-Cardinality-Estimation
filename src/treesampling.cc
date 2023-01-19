@@ -45,9 +45,10 @@ namespace daf {
                 double ij_cs_edge = 0;
                 for (Size cs_idx = 0; cs_idx < CS->GetCandidateSetSize(i); ++cs_idx) {
                     Size num_cs_neighbor = CS->cs_edge_[i][cs_idx][q_neighbor].size();
-                    ij_cs_edge += num_cs_neighbor;
+                    ij_cs_edge += num_cs_neighbor * num_cs_neighbor;
                 }
-                ij_cs_edge /= ((1 + CS->GetCandidateSetSize(i)) * (1 + CS->GetCandidateSetSize(q_neighbor)));
+                
+                ij_cs_edge /= (CS->GetCandidateSetSize(i) * CS->GetCandidateSetSize(q_neighbor));
                 if (ij_cs_edge > 0) {
                     edges.push_back({ij_cs_edge * 1.0,{i, q_neighbor}});
                 }
