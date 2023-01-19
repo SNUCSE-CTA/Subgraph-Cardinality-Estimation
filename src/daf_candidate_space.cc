@@ -59,7 +59,8 @@ namespace daf {
         memset(visited_candidates_, 0, data_->GetNumVertices() * query->GetNumVertices());
         num_visited_candidates = 0;
         BPSolver.global_initialize(query_->GetMaxDegree(), data_->GetMaxDegree());
-        BPTSolver.global_initialize(query_->GetMaxDegree(), data_->max_num_trigs);
+        if (is_data_sparse)
+            BPTSolver.global_initialize(query_->GetMaxDegree(), data_->max_num_trigs);
         for (int i = 0; i < query_->GetNumVertices(); i++) {
             candidate_set_[i].clear();
         }
