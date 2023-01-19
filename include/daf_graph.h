@@ -59,8 +59,8 @@ namespace daf {
             return edge_info_[edge_idx].edge_label;
         }
 
-        tsl::robin_map<std::pair<Vertex, Vertex>, Label> edge_labels_;
-        std::vector<tsl::robin_map<Vertex, int>> edge_exists;
+        std::unordered_map<std::pair<Vertex, Vertex>, Label> edge_labels_;
+        std::vector<std::unordered_map<Vertex, int>> edge_exists;
         std::vector<VertexPair> all_edges;
         std::vector<int> to_;
         std::vector<int> opposite_edge;
@@ -74,7 +74,7 @@ namespace daf {
         std::vector<EdgeInfo> edge_info_;
         std::vector<std::vector<std::vector<int>>> incident_edges_;
         std::vector<std::vector<int>> all_incident_edges_;
-        tsl::robin_map<VertexPair, Size> edge_index_map_;
+        std::unordered_map<VertexPair, Size> edge_index_map_;
 
         struct CycleInfo {
             CycleInfo() {}
@@ -149,12 +149,12 @@ namespace daf {
 
 
     inline bool Graph::CheckEdgeExist(Vertex u, Vertex v) const {
-        return edge_exists[u].find(v, v) != edge_exists[u].end();
+        return edge_exists[u].find(v) != edge_exists[u].end();
     }
 
     inline int Graph::GetEdgeIndex(Vertex u, Vertex v) {
         functionCallCounter++;
-        auto it = edge_exists[u].find(v, v);
+        auto it = edge_exists[u].find(v);
         if (it == edge_exists[u].end()) return -1;
         return (*it).second;
     }

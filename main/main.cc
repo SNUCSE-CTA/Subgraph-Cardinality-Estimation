@@ -16,7 +16,7 @@
 using namespace daf;
 
 //std::string dataset, ans_file_name, data_root;
-std::string dataset = "youtube", ans_file_name = dataset+"_ans", data_root = "../../dataset/";
+std::string dataset = "human", ans_file_name = dataset+"_ans", data_root = "../../dataset/";
 std::string data_name = "../../dataset/human/data_graph/human.graph";
 std::string query_name = "../../dataset/human/query_graph/query_dense_4_100.graph";
 //std::string data_name = "../../dataset/yeast/data_graph/yeast.graph";
@@ -81,18 +81,6 @@ void estimate(DataGraph &data, QueryGraph &query) {
     std::cerr << std::fixed << "Cumul time: " << cumulative_time_/1000 << " sec\t" << cumulative_time_/60000 << " min\n";
 }
 
-std::streampos fileSize( const char* filePath ){
-
-    std::streampos fsize = 0;
-    std::ifstream file( filePath, std::ios::binary );
-
-    fsize = file.tellg();
-    file.seekg( 0, std::ios::end );
-    fsize = file.tellg() - fsize;
-    file.close();
-
-    return fsize;
-}
 
 void loadFullDataset() {
     std::cerr << "Loading dataset " << dataset << std::endl;
@@ -111,7 +99,7 @@ void loadFullDataset() {
         query_names.push_back(name);
         std::string::size_type sz = 0;
         true_cnt[name] = atoll(c.c_str()) * 1.0;
-        std::cerr << "Ans " << name << " " << true_cnt[name] << std::endl;
+//        std::cerr << "Ans " << name << " " << true_cnt[name] << std::endl;
     }
 }
 int main(int argc, char *argv[]) {

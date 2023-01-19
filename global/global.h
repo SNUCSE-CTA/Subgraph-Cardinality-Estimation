@@ -8,11 +8,9 @@
 #include <vector>
 #include <cstring>
 #include <random>
+#include <istream>
+#include <fstream>
 #include <boost/functional/hash.hpp>
-#include "include/tsl/robin_set.h"
-#include "include/tsl/robin_map.h"
-#include "include/tsl/hopscotch_set.h"
-#include "include/tsl/hopscotch_map.h"
 #include "global/log.h"
 
 static int functionCallCounter;
@@ -242,4 +240,19 @@ struct BipartiteMaximumMatching {
 //        return ans;
 //    }
 //};
+
+
+static std::streampos fileSize( const char* filePath ){
+
+    std::streampos fsize = 0;
+    std::ifstream file( filePath, std::ios::binary );
+
+    fsize = file.tellg();
+    file.seekg( 0, std::ios::end );
+    fsize = file.tellg() - fsize;
+    file.close();
+
+    return fsize;
+}
+
 #endif  // GLOBAL_GLOBAL_H_

@@ -31,7 +31,7 @@ void Graph::LoadRoughGraph(std::vector<std::vector<Vertex>> *graph) {
         std::cerr << "Graph file " << filename_ << " not found!\n";
         exit(EXIT_FAILURE);
     }
-    std::cerr << "Start reading graph file from " << filename_ << std::endl;
+    std::cerr << "Start reading graph file from " << filename_ << " " << fileSize(filename_.c_str()) << std::endl;
 
     Size v, e;
     std::string type;
@@ -82,12 +82,10 @@ void Graph::LoadRoughGraph(std::vector<std::vector<Vertex>> *graph) {
             edge_labels_[{v1, v2}] = edge_labels_[{v2, v1}] = el;
         }
         num_lines++;
-        if (num_lines % 100000 == 0) {
-            std::cerr << "Loaded " << num_lines << " lines." << std::endl;
-        }
     }
 
-//    fprintf(stderr, "Graph Read finish : Read %u vertices and %u edges\n",num_vertex_,num_edge_);
+    fprintf(stderr, "Graph Read finish : Read %u vertices and %u edges\n",num_vertex_,num_edge_);
+    fflush(stderr);
     fin_.close();
 }
 

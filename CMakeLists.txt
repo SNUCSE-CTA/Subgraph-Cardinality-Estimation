@@ -8,7 +8,8 @@ add_compile_options(-std=c++2a)
 #add_compile_options(-fsanitize=address)
 #add_link_options(-fsanitize=address)
 FIND_PACKAGE( Boost )
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++2a")
 include_directories(${Boost_INCLUDE_DIRS})
 include_directories(${PROJECT_SOURCE_DIR})
 
