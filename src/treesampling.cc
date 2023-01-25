@@ -45,7 +45,8 @@ namespace daf {
                 double ij_cs_edge = 0;
                 for (Size cs_idx = 0; cs_idx < CS->GetCandidateSetSize(i); ++cs_idx) {
                     Size num_cs_neighbor = CS->cs_edge_[i][cs_idx][q_neighbor].size();
-                    ij_cs_edge += num_cs_neighbor * num_cs_neighbor;
+                    //ij_cs_edge += num_cs_neighbor * num_cs_neighbor;
+                    ij_cs_edge += num_cs_neighbor;
                 }
                 
                 ij_cs_edge /= (CS->GetCandidateSetSize(i) * CS->GetCandidateSetSize(q_neighbor));
@@ -187,16 +188,14 @@ namespace daf {
 
     std::pair<double, int> TreeSampling::UniformSamplingEstimate(Size num_samples) {
         std::vector<int> tree_sample(query_->GetNumVertices(), -1);
-        Size success = 0, t = 0;
-        double ht_est = 0.0;
+        long long success = 0, t = 0;
         int reject_homo = 0, reject_nontree = 0;
-        while (num_samples--) {
+        while (true) {
             std::fill(tree_sample.begin(), tree_sample.end(), -1);
             double ht_prob = SampleCSTree(tree_sample);
             t++;
             int sample_record = CheckSample(tree_sample);
             if (sample_record == 1) {
-                ht_est += ht_prob;
                 success++;
             }
             else if (sample_record == -1) {
@@ -205,9 +204,38 @@ namespace daf {
             else if (sample_record == 0) {
                 reject_nontree++;
             }
-            double rhohat = (success * 1.0 / t);
-            if (success >= 500) break;
+            long double rhohat = (success * 1.0 / t);
+            if(t>=1000 && t%100==0){
+                long double varhat = rhohat*(1-rhohat)/t;
+                if(t>=50000 && success*5000<=t){
+                    success = 0;
+                    break;
+                }
+                if(success >= 100) break;
+                //Wilson
+                boost::math::normal dist(0., 1.);
+                long double z = quantile(dist, 0.95);
+                long double wminus = (success + z*z/2 - z*sqrt(success*(t-success)/(long double)t + z*z/4))/(t+z*z);
+                long double wplus  = (success + z*z/2 + z*sqrt(success*(t-success)/(long double)t + z*z/4))/(t+z*z);
+                
+                if(rhohat * 0.8 < wminus && wplus < rhohat * 1.25){
+                    break;
+                }
+/*
+                //Agresti-Coull
+                boost::math::normal dist(0., 1.);
+                long double z = quantile(dist, 0.975);
+                long double ntilde = t + z*z;
+                long double rhotilde = (success+z*z/2)/ntilde;
+                long double wminus = rhotilde - z*sqrt(rhotilde*(1-rhotilde)/ntilde);
+                long double wplus = rhotilde + z*sqrt(rhotilde*(1-rhotilde)/ntilde);
+                //if(rhohat * 0.8 < wminus && wplus < rhohat * 1.25) break;
+                if(rhohat * (1-t/1500000.0) < wminus && wplus < rhohat * (1+t/1500000.0)) break;
+*/                
+            }
         }
+        fprintf(stderr, "#NUM_SAMPLES : %u, #NUM_SUCCESS : %u\n", t, success);
+
         fprintf(stdout, "#NUM_SAMPLES : %u\n", t);
         fprintf(stdout, "#NUM_SUCCESS : %u\n", success);
 //        fprintf(stderr,"Rejected by Injective : %d, Rejected by Edge : %d\n", reject_homo, reject_nontree);
