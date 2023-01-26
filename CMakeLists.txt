@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.0)
 project(SubgraphSampler)
 
 add_compile_options(-Ofast)
+add_compile_options(-Wno-deprecated-declarations)
 #add_compile_options(-Wall)
 add_compile_options(-std=c++2a)
 

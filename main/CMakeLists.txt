@@ -1,6 +1,7 @@
 add_compile_options(-Ofast)
 #add_compile_options(-Wall)
 add_compile_options(-std=c++2a)
+add_compile_options(-Wno-deprecated-declarations)
 #add_compile_options(-DNDEBUG)
 #set(CMAKE_C_COMPILER "gcc-12")
 #set(CMAKE_CXX_COMPILER "g++-12")
