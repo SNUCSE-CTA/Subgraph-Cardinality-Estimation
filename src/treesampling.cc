@@ -251,7 +251,7 @@ namespace daf {
         std::cout << "Uniform Sampling time: " << std::fixed << sampletimer_uni.GetTime() << " ms\n";
         if (uniformResult.first < 0) {
             sampletimer_inter.Start();
-            double intersectionResult = RWI_->IntersectionSamplingEstimate(num_samples);
+            double intersectionResult = RWI_->IntersectionSamplingEstimate(num_samples/2);
             sampletimer_inter.Stop();
             std::cout << "Intersection Sampling time: " << std::fixed << sampletimer_inter.GetTime() << " ms\n";
             return intersectionResult;

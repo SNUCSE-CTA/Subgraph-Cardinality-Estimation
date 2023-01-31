@@ -56,7 +56,7 @@ namespace daf {
             memset(BitsetCS[i], false, data_->GetNumVertices());
         }
         for (int i = 0; i < query_->edge_info_.size(); i++) {
-            memset(BitsetEdgeCS[i], true, data_->edge_info_.size());
+            memset(BitsetEdgeCS[i], false, data_->edge_info_.size());
         }
         memset(num_edges, 0, sizeof(num_edges));
         memset(num_cur_edges, 0, sizeof(num_cur_edges));
@@ -126,7 +126,11 @@ namespace daf {
                     for (int data_edge_idx : data_->GetIncidentEdges(parent_cand, cur_label)) {
                         Vertex cand = data_->opposite(data_edge_idx, parent_cand);
                         if (num_visit_cs_[cand] < num_parent) continue;
-                        if (data_->GetDegree(cand) < query_->GetDegree(cur)) continue;
+                        for (int l = 0; l < data_->GetNumLabels(); l++) {
+                            if (data_->incident_edges_[cand][l].size() < query_->incident_edges_[cur][l].size()) {
+                                goto nxt_candidate;
+                            }
+                        }
                         if (data_->GetELabel(data_edge_idx) != query_->GetELabel(query_edge_idx)) continue;
                         if (num_visit_cs_[cand] == num_parent) {
                             num_visit_cs_[cand] += 1;
@@ -135,6 +139,8 @@ namespace daf {
                                 num_visited_candidates += 1;
                             }
                         }
+                        nxt_candidate:
+                        continue;
                     }
                 }
                 num_parent += 1;

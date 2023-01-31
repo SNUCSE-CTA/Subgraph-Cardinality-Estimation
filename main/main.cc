@@ -121,6 +121,7 @@ int main(int argc, char *argv[]) {
                     break;
                 case 's':
                     num_samples = std::atoi(argv[i + 1]);
+                    break;
             }
         }
     }
