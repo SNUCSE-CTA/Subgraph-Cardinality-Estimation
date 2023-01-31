@@ -11,6 +11,7 @@
 #include <istream>
 #include <fstream>
 #include <boost/functional/hash.hpp>
+#include <boost/math/distributions.hpp>
 #include "global/log.h"
 
 static int functionCallCounter;
