@@ -107,10 +107,7 @@ namespace daf {
                 begin += 1;
                 popped[parent] = true;
 
-                for (Size i = query_.GetStartOffset(parent);
-                     i < query_.GetEndOffset(parent); ++i) {
-                    Vertex child = query_.GetNeighbor(i);
-
+                for (Vertex child : query_.adj_list[parent]) {
                     if (!popped[child]) {
                         // build edge from parent to child
                         bfs_level_[child] = bfs_level_[parent] + 1;

@@ -15,6 +15,7 @@ namespace daf {
 
     BipartiteMaximumMatching BPSolver, BPTSolver;
     int temporary_left[1000];
+    int num_edges[MAX_QUERY_VERTEX][MAX_QUERY_VERTEX], num_cur_edges[MAX_QUERY_VERTEX][MAX_QUERY_VERTEX];;
 
     CandidateSpace::CandidateSpace(DataGraph *data) {
         data_ = data;
@@ -26,7 +27,7 @@ namespace daf {
         BitsetEdgeCS = new bool*[MAX_QUERY_EDGE];
         for (int i = 0; i < MAX_QUERY_EDGE; i++) {
             BitsetEdgeCS[i] = new bool[data->edge_info_.size()];
-            memset(BitsetEdgeCS[i], true, data->edge_info_.size());
+            memset(BitsetEdgeCS[i], false, data->edge_info_.size());
         }
         num_visit_cs_ = new QueryDegree[data_->GetNumVertices()];
         visited_candidates_ = new Vertex[data_->GetNumVertices() * MAX_QUERY_VERTEX];
@@ -55,8 +56,10 @@ namespace daf {
             memset(BitsetCS[i], false, data_->GetNumVertices());
         }
         for (int i = 0; i < query_->edge_info_.size(); i++) {
-            memset(BitsetEdgeCS[i], true, data_->edge_info_.size());
+            memset(BitsetEdgeCS[i], false, data_->edge_info_.size());
         }
+        memset(num_edges, 0, sizeof(num_edges));
+        memset(num_cur_edges, 0, sizeof(num_cur_edges));
         memset(num_visit_cs_, 0, data_->GetNumVertices());
         memset(visited_candidates_, 0, data_->GetNumVertices() * query->GetNumVertices());
         num_visited_candidates = 0;
@@ -123,7 +126,11 @@ namespace daf {
                     for (int data_edge_idx : data_->GetIncidentEdges(parent_cand, cur_label)) {
                         Vertex cand = data_->opposite(data_edge_idx, parent_cand);
                         if (num_visit_cs_[cand] < num_parent) continue;
-                        if (data_->GetDegree(cand) < query_->GetDegree(cur)) continue;
+                        for (int l = 0; l < data_->GetNumLabels(); l++) {
+                            if (data_->incident_edges_[cand][l].size() < query_->incident_edges_[cur][l].size()) {
+                                goto nxt_candidate;
+                            }
+                        }
                         if (data_->GetELabel(data_edge_idx) != query_->GetELabel(query_edge_idx)) continue;
                         if (num_visit_cs_[cand] == num_parent) {
                             num_visit_cs_[cand] += 1;
@@ -132,6 +139,8 @@ namespace daf {
                                 num_visited_candidates += 1;
                             }
                         }
+                        nxt_candidate:
+                        continue;
                     }
                 }
                 num_parent += 1;
@@ -160,6 +169,20 @@ namespace daf {
             }
         }
 
+        for (int i = 0; i < query_->GetNumVertices(); i++) {
+            for (int q_edge_idx : query_->all_incident_edges_[i]) {
+                int q_nxt = query_->to_[q_edge_idx];
+                for (int j : candidate_set_[i]) {
+                    for (int d_edge_idx : data_->GetIncidentEdges(j, query_->GetLabel(q_nxt))) {
+                        int d_nxt = data_->to_[d_edge_idx];
+                        if (BitsetCS[q_nxt][d_nxt]) {
+                            BitsetEdgeCS[q_edge_idx][d_edge_idx] = true;
+                            num_edges[i][q_nxt]++;
+                        }
+                    }
+                }
+            }
+        }
         delete[] nbr_label_bitset;
         return result;
     }
@@ -484,6 +507,7 @@ namespace daf {
         int maximum_queue_cnt = 5 * query_->GetNumVertices();
         int current_stage = 0;
         while (!candidate_queue.empty()) {
+            memcpy(num_cur_edges, num_edges, sizeof(num_edges));
             auto [pri, stage, cur] = candidate_queue.top();
             candidate_queue.pop();
             if (stage < local_stage[cur]) continue;
@@ -511,6 +535,8 @@ namespace daf {
                             continue;
                         }
                         if (!EdgeSafety(query_edge_idx, data_edge_idx)) {
+                            num_cur_edges[cur][nxt]--;
+                            num_cur_edges[nxt][cur]--;
                             BitsetEdgeCS[query_edge_idx][data_edge_idx] = false;
                             BitsetEdgeCS[query_->opposite_edge[query_edge_idx]][data_->opposite_edge[data_edge_idx]] = false;
                             continue;
@@ -583,8 +609,8 @@ namespace daf {
                             found = true;
                         }
                         else {
-//                            printf("Edge %d-%d is dead\n",query_edge_idx, data_edge_idx);
-//                            printf("%d-%d to %d-%d\n",cur, nxt, cand, nxt_cand);
+                            num_cur_edges[cur][nxt]--;
+                            num_cur_edges[nxt][cur]--;
                             BitsetEdgeCS[query_edge_idx][data_edge_idx] = false;
                             BitsetEdgeCS[query_->opposite_edge[query_edge_idx]][data_->opposite_edge[data_edge_idx]] = false;
                         }
@@ -599,6 +625,21 @@ namespace daf {
                 }
                 remove_vertex_:
                 if (!valid) {
+                    int removed = candidate_set_[cur][i];
+                    for (int query_edge_idx : query_->all_incident_edges_[cur]) {
+                        int nxt = query_->to_[query_edge_idx];
+                        for (int data_edge_idx : data_->GetIncidentEdges(removed, query_->GetLabel(nxt))) {
+                            int nxt_cand = data_->to_[data_edge_idx];
+                            if (data_->GetDegree(nxt_cand) < query_->GetDegree(nxt)) break;
+                            if (!BitsetCS[nxt][nxt_cand]) continue;
+                            if (BitsetEdgeCS[query_edge_idx][data_edge_idx]) {
+                                num_cur_edges[cur][nxt]--;
+                                num_cur_edges[nxt][cur]--;
+                                BitsetEdgeCS[query_edge_idx][data_edge_idx] = false;
+                                BitsetEdgeCS[query_->opposite_edge[query_edge_idx]][data_->opposite_edge[data_edge_idx]] = false;
+                            }
+                        }
+                    }
                     candidate_set_[cur][i] = candidate_set_[cur].back();
                     candidate_set_[cur].pop_back();
                     --i;
@@ -624,10 +665,12 @@ namespace daf {
             priority[cur] = 0;
 //            fprintf(stderr, "Reduced CS[%d] from %d to %d\n",cur,bef_cand_size,aft_cand_size);
             for (Vertex nxt : query_->adj_list[cur]) {
+                double removed_edge_ratio = 1 - (num_cur_edges[cur][nxt] * 1.0 / num_edges[cur][nxt]);
+//                priority[nxt] = 1 - (1 - removed_edge_ratio) * (1 - priority[nxt]);
                 priority[nxt] = 1 - (1 - out_prob) * (1 - priority[nxt]);
-                if (priority[nxt] < 0.1) continue;
+                if (priority[nxt] < 0.001) continue;
                 local_stage[nxt] = current_stage;
-                //fprintf(stderr, "    Cur=[%d] pushes Nxt=[%d] with priority %lf\n",cur,nxt,priority[nxt]);
+//                fprintf(stderr, "    Cur=[%d] pushes Nxt=[%d] with priority %lf\n",cur,nxt,priority[nxt]);
                 candidate_queue.push({priority[nxt], current_stage, nxt});
             }
         }

@@ -186,6 +186,8 @@ namespace daf {
         return result;
     }
 
+    boost::math::normal dist(0., 1.);
+    long double z = quantile(dist, 0.975);
     std::pair<double, int> TreeSampling::UniformSamplingEstimate(Size num_samples) {
         std::vector<int> tree_sample(query_->GetNumVertices(), -1);
         long long success = 0, t = 0;
@@ -206,15 +208,14 @@ namespace daf {
             }
             long double rhohat = (success * 1.0 / t);
             if(t>=1000 && t%100==0){
-                long double varhat = rhohat*(1-rhohat)/t;
                 if(t>=50000 && success*5000<=t){
-                    success = 0;
-                    break;
+                    fprintf(stderr, "#NUM_SAMPLES : %lld, #NUM_SUCCESS : %lld\n", t, success);
+                    fprintf(stdout, "#NUM_SAMPLES : %lld\n", t);
+                    fprintf(stdout, "#NUM_SUCCESS : %lld\n", success);
+                    return {-1, success};
                 }
-                if(success >= 100) break;
-                //Wilson
-                boost::math::normal dist(0., 1.);
-                long double z = quantile(dist, 0.95);
+//                if(success >= 100) break;
+                // Wilson Confidence Interval
                 long double wminus = (success + z*z/2 - z*sqrt(success*(t-success)/(long double)t + z*z/4))/(t+z*z);
                 long double wplus  = (success + z*z/2 + z*sqrt(success*(t-success)/(long double)t + z*z/4))/(t+z*z);
                 
@@ -234,10 +235,10 @@ namespace daf {
 */                
             }
         }
-        fprintf(stderr, "#NUM_SAMPLES : %u, #NUM_SUCCESS : %u\n", t, success);
+        fprintf(stderr, "#NUM_SAMPLES : %lld, #NUM_SUCCESS : %lld\n", t, success);
 
-        fprintf(stdout, "#NUM_SAMPLES : %u\n", t);
-        fprintf(stdout, "#NUM_SUCCESS : %u\n", success);
+        fprintf(stdout, "#NUM_SAMPLES : %lld\n", t);
+        fprintf(stdout, "#NUM_SUCCESS : %lld\n", success);
 //        fprintf(stderr,"Rejected by Injective : %d, Rejected by Edge : %d\n", reject_homo, reject_nontree);
         return {total_trees_ * (success * 1.0 / t), success};
     }
@@ -248,9 +249,9 @@ namespace daf {
         std::pair<double, int> uniformResult = UniformSamplingEstimate(num_samples/10);
         sampletimer_uni.Stop();
         std::cout << "Uniform Sampling time: " << std::fixed << sampletimer_uni.GetTime() << " ms\n";
-        if (uniformResult.second == 0) {
+        if (uniformResult.first < 0) {
             sampletimer_inter.Start();
-            double intersectionResult = RWI_->IntersectionSamplingEstimate(num_samples);
+            double intersectionResult = RWI_->IntersectionSamplingEstimate(num_samples/2);
             sampletimer_inter.Stop();
             std::cout << "Intersection Sampling time: " << std::fixed << sampletimer_inter.GetTime() << " ms\n";
             return intersectionResult;
