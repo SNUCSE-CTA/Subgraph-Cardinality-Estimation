@@ -613,6 +613,10 @@ namespace daf {
                             num_cur_edges[nxt][cur]--;
                             BitsetEdgeCS[query_edge_idx][data_edge_idx] = false;
                             BitsetEdgeCS[query_->opposite_edge[query_edge_idx]][data_->opposite_edge[data_edge_idx]] = false;
+                            if(!BPSolver.remove_edge(ii, jj)){
+                                valid=false;
+                                goto remove_vertex_;
+                            }
                         }
                     }
                     if (!found) {
@@ -668,7 +672,7 @@ namespace daf {
                 double removed_edge_ratio = 1 - (num_cur_edges[cur][nxt] * 1.0 / num_edges[cur][nxt]);
 //                priority[nxt] = 1 - (1 - removed_edge_ratio) * (1 - priority[nxt]);
                 priority[nxt] = 1 - (1 - out_prob) * (1 - priority[nxt]);
-                if (priority[nxt] < 0.001) continue;
+                if (priority[nxt] < 0.1) continue;
                 local_stage[nxt] = current_stage;
 //                fprintf(stderr, "    Cur=[%d] pushes Nxt=[%d] with priority %lf\n",cur,nxt,priority[nxt]);
                 candidate_queue.push({priority[nxt], current_stage, nxt});

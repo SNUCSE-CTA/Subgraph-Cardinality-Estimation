@@ -73,6 +73,7 @@ struct BipartiteMaximumMatching {
     int left_len, right_len;
     bool *used;
     int **adj, *adj_size;
+    int **adj_index;
 
     void global_initialize(int max_left, int max_right) {
 //        fprintf(stderr, "BPSolver init to %d by %d\n",max_left,max_right);
@@ -82,8 +83,10 @@ struct BipartiteMaximumMatching {
         right_len = max_right;
         used = new bool[max_left];
         adj = new int*[max_left];
+        adj_index = new int*[max_left];
         for (int i = 0; i < max_left; i++) {
             adj[i] = new int[max_right];
+            adj_index[i] = new int[max_right];
         }
         adj_size = new int[max_left];
     }
@@ -106,7 +109,15 @@ struct BipartiteMaximumMatching {
         }
     }
     void add_edge(int u, int v) {
+        adj_index[u][v] = adj_size[u];
         adj[u][adj_size[u]++] = v;
+    }
+    int remove_edge(int u, int v){
+        if(adj_size[u]>1){
+            adj_index[u][adj[u][adj_size[u]-1]] = adj_index[u][v];
+            std::swap(adj[u][adj_size[u]-1], adj[u][adj_index[u][v]]);
+        }
+        return --adj_size[u];
     }
     void revert(int *tmp_left) {
         for (int i = 0; i < left_len; i++) {
