@@ -6,18 +6,6 @@ namespace daf {
 
     std::vector<int> population;
 
-    inline Size sample_without_weight(std::vector<int> &cand) {
-        int idx = gen() % cand.size();
-        return cand[idx];
-    }
-
-    inline Size sample_without_weight(std::set<int> &cand) {
-        int idx = gen() % cand.size();
-        std::set<int>::const_iterator it(cand.begin());
-        advance(it, idx);
-        return *it;
-    }
-
     int rwi_sample_count = 1000000;
     int local_cand_cnt = 0, local_cand_sum = 0;
 
@@ -75,7 +63,7 @@ namespace daf {
         iterators.clear();
         for (int q_nbr : query_->adj_list[u]) {
             if (dag_sample[q_nbr] == -1) continue;
-            iterators.push_back({CS->cs_edge_[q_nbr][dag_sample[q_nbr]][u].begin(), CS->cs_edge_[q_nbr][dag_sample[q_nbr]][u].end()});
+            iterators.emplace_back(CS->cs_edge_[q_nbr][dag_sample[q_nbr]][u].begin(), CS->cs_edge_[q_nbr][dag_sample[q_nbr]][u].end());
         }
         std::sort(iterators.begin(), iterators.end(), [](auto &a, auto &b) -> bool {
             return a.second - a.first < b.second - b.first;
@@ -122,8 +110,19 @@ namespace daf {
         int skipped = 0;
         if (num_branches == 1) {
             dag_sample[u] = local_candidates[u][gen()%local_candidate_size[u]];
-            auto nxt_result = SampleDAGVertex(dag_sample, vertex_id+1);
-            ht_s += nxt_result;
+            ht_s += SampleDAGVertex(dag_sample, vertex_id+1);
+        }
+        else if (num_branches == 2) {
+            int a = gen() % local_candidate_size[u];
+            int b = gen() % (local_candidate_size[u] - 1);
+            if (b >= a) b++;
+            dag_sample[u] = local_candidates[u][a];
+            ht_s += SampleDAGVertex(dag_sample, vertex_id+1);
+            if (rwi_sample_count <= 0) skipped = 1;
+            else {
+                dag_sample[u] = local_candidates[u][b];
+                ht_s += SampleDAGVertex(dag_sample, vertex_id+1);
+            }
         }
         else {
             if (num_branches < local_candidate_size[u]) {
