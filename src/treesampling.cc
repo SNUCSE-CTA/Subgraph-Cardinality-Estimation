@@ -93,14 +93,16 @@ namespace daf {
                 double num_ = 1.0;
                 Vertex v = CS->GetCandidate(u, cs_idx);
                 std::fill(tmp_num_child.begin(), tmp_num_child.end(), 0.0);
-                for (auto &[uc, vc_idx] : CS->cs_edge_list_[u][cs_idx]){
+                for (auto &uc : query_->adj_list[u]){
                     if (dag_->GetTreeParent(uc, 0) != u) continue;
-                    Vertex vc = CS->GetCandidate(uc, vc_idx);
-                    Size uc_idx = dag_->GetChildIndex(uc);
+                    for (auto &vc_idx : CS->cs_edge_[u][cs_idx][uc]) {
+                        Vertex vc = CS->GetCandidate(uc, vc_idx);
+                        Size uc_idx = dag_->GetChildIndex(uc);
 //                    fprintf(stderr, "Consider [%u %u(%u)] -> [%u %u(%u)]\n",u,cs_idx,v, uc, vc_idx, vc);
-                    tmp_num_child[uc_idx] += num_trees_[uc][vc];
-                    sample_candidates_[u][cs_idx][uc_idx].emplace_back(vc_idx);
-                    sample_candidate_weights_[u][cs_idx][uc_idx].emplace_back(num_trees_[uc][vc]);
+                        tmp_num_child[uc_idx] += num_trees_[uc][vc];
+                        sample_candidates_[u][cs_idx][uc_idx].emplace_back(vc_idx);
+                        sample_candidate_weights_[u][cs_idx][uc_idx].emplace_back(num_trees_[uc][vc]);
+                    }
                 }
                 for (Size j = 0; j < num_children; ++j) {
                     num_ *= tmp_num_child[j];
@@ -132,7 +134,8 @@ namespace daf {
 
     double TreeSampling::SampleCSTree(std::vector<int> &tree_sample) {
         tree_sample[dag_->GetRoot()] = root_candidates_[sample(sample_root_dist_)];
-
+        seen_[CS->GetCandidate(dag_->GetRoot(), tree_sample[dag_->GetRoot()])] = true;
+        bool valid = true;
 //        fprintf(stderr, "DAGRoot = %u, sampled %uth\n", dag_->GetRoot(), tree_sample[dag_->GetRoot()]);
         for (Size i = 0; i < query_->GetNumVertices(); ++i) {
             Vertex u = dag_->GetVertexOrderedByTree(i);
@@ -142,73 +145,62 @@ namespace daf {
                 Size vc_idx = sample(sample_dist_[u][v_idx][uc_idx]);
 //                fprintf(stderr, "vertex %u-%u, child %u => Sample %u...",u,v,uc,vc);
                 tree_sample[uc] = sample_candidates_[u][v_idx][uc_idx][vc_idx];
-            }
-        }
-        for (Size i = 0; i < query_->GetNumVertices(); ++i) {
-            tree_sample[i] = CS->GetCandidate(i, tree_sample[i]);
-        }
-//        fprintf(stderr, "SAMPLE : ");
-//        for (Size i = 0; i < query_->GetNumVertices(); ++i) {
-//            fprintf(stderr, " %u(%u)", tree_sample[i], i);
-//        }
-//        fprintf(stderr, "\n");
-        return 1.0;
-    }
-
-    int TreeSampling::CheckSample(std::vector<int> &sample) {
-        int result = 1;
-        for (Size i = 0; i < query_->GetNumVertices(); ++i) {
-            if (sample[i] >= 0) {
-                Vertex cand = sample[i];
+                int cand = CS->GetCandidate(uc, tree_sample[uc]);
                 if (seen_[cand]) {
-//                    fprintf(stderr, "Dead by Noninjectiveness : %d is seen twice\n",cand);
-                    result = -1;
-                    goto done;
+                    valid = false;
+                    goto INJECTIVE_VIOLATED;
                 }
                 seen_[cand] = true;
             }
         }
+        INJECTIVE_VIOLATED:
+        for (int i = 0; i < query_->GetNumVertices(); i++) {
+            if (tree_sample[i] >= 0) {
+                int cand = CS->GetCandidate(i, tree_sample[i]);
+                seen_[cand] = false;
+            }
+        }
+        if (!valid) return 0.0;
+        for (Size i = 0; i < query_->GetNumVertices(); ++i) {
+            tree_sample[i] = CS->GetCandidate(i, tree_sample[i]);
+        }
+        return 1.0;
+    }
 
+    int TreeSampling::CheckSample(std::vector<int> &sample) {
         for (auto &[i, j] : query_->all_edges) {
             if (sample[i] < 0 || sample[j] < 0) continue;
             if (!data_->CheckEdgeExist(sample[i], sample[j])) {
-                result = 0;
-//                fprintf(stderr, "There should be an edge between %u and %u but there isnt in %u %u\n",
-//                        i,j,sample[i],sample[j]);
-                goto done;
+                return false;
             }
         }
-        done:
-        for (Size i = 0; i < query_->GetNumVertices(); ++i) {
-            if (sample[i] >= 0)
-                seen_[sample[i]] = false;
-        }
-        return result;
+        return true;
     }
 
     boost::math::normal dist(0., 1.);
     long double z = quantile(dist, 0.975);
-    std::pair<double, int> TreeSampling::UniformSamplingEstimate(Size num_samples) {
+    std::pair<double, int> TreeSampling::UniformSamplingEstimate() {
         std::vector<int> tree_sample(query_->GetNumVertices(), -1);
         long long success = 0, t = 0;
         int reject_homo = 0, reject_nontree = 0;
         while (true) {
             std::fill(tree_sample.begin(), tree_sample.end(), -1);
-            double ht_prob = SampleCSTree(tree_sample);
+            double sample_result = SampleCSTree(tree_sample);
             t++;
-            int sample_record = CheckSample(tree_sample);
-            if (sample_record == 1) {
-                success++;
+            if (sample_result > 0.5) {
+                int sample_record = CheckSample(tree_sample);
+                if (sample_record == 1) {
+                    success++;
+                }
+                else if (sample_record == 0) {
+                    reject_nontree++;
+                }
             }
-            else if (sample_record == -1) {
-                reject_homo++;
-            }
-            else if (sample_record == 0) {
-                reject_nontree++;
-            }
+            else reject_homo++;
             long double rhohat = (success * 1.0 / t);
             if(t>=1000 && t%100==0){
-                if(t>=50000 && success*5000<=t){
+                if(t==50000 && success*5000<=t){
+                    fprintf(stderr, "NUM_HOMO  %d\tNUM_CFLCT %d\n",reject_homo, reject_nontree);
                     fprintf(stderr, "#NUM_SAMPLES : %lld, #NUM_SUCCESS : %lld\n", t, success);
                     fprintf(stdout, "#NUM_SAMPLES : %lld\n", t);
                     fprintf(stdout, "#NUM_SUCCESS : %lld\n", success);
@@ -218,7 +210,7 @@ namespace daf {
                 // Wilson Confidence Interval
                 long double wminus = (success + z*z/2 - z*sqrt(success*(t-success)/(long double)t + z*z/4))/(t+z*z);
                 long double wplus  = (success + z*z/2 + z*sqrt(success*(t-success)/(long double)t + z*z/4))/(t+z*z);
-                
+
                 if(rhohat * 0.8 < wminus && wplus < rhohat * 1.25){
                     break;
                 }
@@ -232,9 +224,10 @@ namespace daf {
                 long double wplus = rhotilde + z*sqrt(rhotilde*(1-rhotilde)/ntilde);
                 //if(rhohat * 0.8 < wminus && wplus < rhohat * 1.25) break;
                 if(rhohat * (1-t/1500000.0) < wminus && wplus < rhohat * (1+t/1500000.0)) break;
-*/                
+*/
             }
         }
+        fprintf(stderr, "NUM_HOMO  %d\tNUM_CFLCT %d\n",reject_homo, reject_nontree);
         fprintf(stderr, "#NUM_SAMPLES : %lld, #NUM_SUCCESS : %lld\n", t, success);
 
         fprintf(stdout, "#NUM_SAMPLES : %lld\n", t);
@@ -246,12 +239,12 @@ namespace daf {
     double TreeSampling::EstimateEmbeddings(Size num_samples) {
         Timer sampletimer_uni, sampletimer_inter;
         sampletimer_uni.Start();
-        std::pair<double, int> uniformResult = UniformSamplingEstimate(num_samples/10);
+        std::pair<double, int> uniformResult = UniformSamplingEstimate();
         sampletimer_uni.Stop();
         std::cout << "Uniform Sampling time: " << std::fixed << sampletimer_uni.GetTime() << " ms\n";
         if (uniformResult.first < 0) {
             sampletimer_inter.Start();
-            double intersectionResult = RWI_->IntersectionSamplingEstimate(num_samples/2);
+            double intersectionResult = RWI_->IntersectionSamplingEstimate(1000000 / (uniformResult.second + 1));
             sampletimer_inter.Stop();
             std::cout << "Intersection Sampling time: " << std::fixed << sampletimer_inter.GetTime() << " ms\n";
             return intersectionResult;

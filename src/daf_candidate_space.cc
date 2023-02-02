@@ -14,7 +14,6 @@ namespace daf {
     bool is_data_sparse = true;
 
     BipartiteMaximumMatching BPSolver, BPTSolver;
-    int temporary_left[1000];
     int num_edges[MAX_QUERY_VERTEX][MAX_QUERY_VERTEX], num_cur_edges[MAX_QUERY_VERTEX][MAX_QUERY_VERTEX];;
 
     CandidateSpace::CandidateSpace(DataGraph *data) {
@@ -553,7 +552,6 @@ namespace daf {
                         break;
                     }
                     jj = -1;
-                    std::memcpy(temporary_left, BPSolver.left, sizeof(int) * BPSolver.left_len);
                     for (int data_edge_idx : data_->all_incident_edges_[cand]) {
                         Vertex nxt_cand = data_->to_[data_edge_idx];
                         jj++;
@@ -567,12 +565,7 @@ namespace daf {
                         }
                         std::memset(BPSolver.used, false, sizeof(bool) * query_->adj_list[cur].size());
                         BPSolver.used[ii] = true;
-//                        printf("ii = %d(%d), jj = %d(%d), DFS[%d]...\n",
-//                               ii,query_->to_[query_->all_incident_edges_[cur][ii]],
-//                               jj,data_->to_[data_->all_incident_edges_[cand][jj]],BPSolver.right[jj]);
-//                        BPSolver.print();
                         if (BPSolver.single_dfs(BPSolver.right[jj])) {
-//                            printf("DFS[%d]...\n",BPSolver.right[jj]);
                             found = true;
                         }
                         else {
@@ -649,11 +642,11 @@ namespace daf {
 
     void CandidateSpace::ConstructCS() {
         Timer csbuild_timer; csbuild_timer.Start();
-        cs_edge_list_.clear();
-        cs_edge_list_.resize(query_->GetNumVertices(), std::vector<std::vector<VertexPair>>());
+        cs_edge_.clear();
+        cs_edge_.resize(query_->GetNumVertices());
         std::vector <int> CandidateIndex(data_->GetNumVertices());
         for (Size i = 0; i < query_->GetNumVertices(); ++i) {
-            cs_edge_list_[i].resize(GetCandidateSetSize(i));
+            cs_edge_[i].resize(GetCandidateSetSize(i));
         }
         Size CandidateSpaceSize = 0, CandidateEdges = 0;
         for (Size i = 0; i < query_->GetNumVertices(); ++i) {
@@ -662,8 +655,10 @@ namespace daf {
             Size u_degree = query_->GetDegree(u);
 
             CandidateSpaceSize += GetCandidateSetSize(u);
-            for (Size idx = 0; idx < GetCandidateSetSize(u); idx++)
+            for (Size idx = 0; idx < GetCandidateSetSize(u); idx++) {
                 CandidateIndex[candidate_set_[u][idx]] = idx;
+                cs_edge_[u][idx].resize(query_->GetNumVertices());
+            }
 
             for (Vertex u_adj : query_->adj_list[u]) {
                 int query_edge_idx = query_->GetEdgeIndex(u_adj, u);
@@ -676,22 +671,8 @@ namespace daf {
                         if (data_->GetDegree(v) < u_degree) break;
                         if (!BitsetEdgeCS[query_edge_idx][data_edge_idx]) continue;
                         CandidateEdges++;
-                        cs_edge_list_[u][CandidateIndex[v]].emplace_back(u_adj, v_adj_idx);
+                        cs_edge_[u][CandidateIndex[v]][u_adj].emplace_back(v_adj_idx);
                     }
-                }
-            }
-        }
-        cs_edge_.clear();
-        cs_edge_.resize(query_->GetNumVertices());
-        for (int u = 0; u < query_->GetNumVertices(); u++) {
-            cs_edge_[u].resize(GetCandidateSetSize(u));
-            for (Size idx = 0; idx < GetCandidateSetSize(u); idx++) {
-                auto &it = cs_edge_list_[u][idx];
-                std::sort(it.begin(), it.end());
-                it.erase(std::unique(it.begin(), it.end()), it.end());
-                cs_edge_[u][idx].resize(query_->GetNumVertices());
-                for (auto &i : it) {
-                    cs_edge_[u][idx][i.first].push_back(i.second);
                 }
             }
         }
@@ -768,9 +749,6 @@ namespace daf {
             fprintf(stdout, "\n");
             for (int j = 0; j < GetCandidateSetSize(i); j++) {
                 fprintf(stdout, "  CS Edges from %d\n", GetCandidate(i, j));
-                for (auto it : cs_edge_list_[i][j]) {
-                    fprintf(stdout, "    Edge with [%d, %d]\n",it.first, it.second);
-                }
             }
         }
     }

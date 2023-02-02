@@ -30,7 +30,6 @@ namespace daf {
 
         inline Vertex GetCandidate(Vertex u, Size v_idx) const;
 
-        std::vector<std::vector<std::vector<VertexPair>>> cs_edge_list_;
         std::vector<std::vector<std::vector<std::vector<int>>>> cs_edge_;
 
 

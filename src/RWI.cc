@@ -6,6 +6,7 @@ namespace daf {
 
     std::vector<int> population;
 
+    std::map<int, int> mp;
     int rwi_sample_count = 1000000;
     int local_cand_cnt = 0, local_cand_sum = 0;
 
@@ -41,8 +42,10 @@ namespace daf {
         }
     }
 
+
     double RWI::SampleDAGVertex(std::vector<int> &dag_sample, int vertex_id) {
         // Vertex with minimum number of (1-edge) candidate
+//        mp[vertex_id]++;
         std::fill(num_seen.begin(), num_seen.end(), 0);
         int u = -1;
         for (int i = 0; i < query_->GetNumVertices(); i++) {
@@ -125,26 +128,38 @@ namespace daf {
             }
         }
         else {
-            if (num_branches < local_candidate_size[u]) {
+            if (num_branches > 0.1 * local_candidate_size[u]) {
                 std::shuffle(local_candidates[u], local_candidates[u] + local_candidate_size[u], gen);
-            }
-            for (int b = 0; b < num_branches; b++) {
-                if (rwi_sample_count <= 0) {
-                    skipped = num_branches - b;
-                    break;
+                for (int b = 0; b < num_branches; b++) {
+                    if (rwi_sample_count <= 0) {
+                        skipped = num_branches - b;
+                        break;
+                    }
+                    dag_sample[u] = local_candidates[u][b];
+                    auto nxt_result = SampleDAGVertex(dag_sample, vertex_id+1);
+                    ht_s += nxt_result;
                 }
-                dag_sample[u] = local_candidates[u][b];
-                auto nxt_result = SampleDAGVertex(dag_sample, vertex_id+1);
-                ht_s += nxt_result;
+            }
+            else {
+                for (int b = 0; b < num_branches; b++) {
+                    if (rwi_sample_count <= 0) {
+                        skipped = num_branches - b;
+                        break;
+                    }
+                    int idx = gen() % local_candidate_size[u];
+                    while (local_candidates[u][idx] == -1) {
+                        idx = gen() % local_candidate_size[u];
+                    }
+                    dag_sample[u] = local_candidates[u][idx];
+                    local_candidates[u][idx] = -1;
+                    auto nxt_result = SampleDAGVertex(dag_sample, vertex_id+1);
+                    ht_s += nxt_result;
+                }
             }
         }
         dag_sample[u] = -1;
         return (sample_space_size * ht_s / (num_branches - skipped));
-
     }
-
-
-
 
     double RWI::IntersectionSamplingEstimate(Size num_samples) {
         population.resize(data_->GetNumVertices());
@@ -173,6 +188,9 @@ namespace daf {
         fprintf(stderr, "AVG Local Candset %.02lf\n",local_cand_sum*1.0/local_cand_cnt);
         ht_est *= root_candidates_.size();
         ht_est /= ht_count;
+//        for (auto &[u, v] : mp) {
+//            fprintf(stderr, "Instances of sample space %d = %d\n",u,v);
+//        }
         return ht_est;
     }
 }
