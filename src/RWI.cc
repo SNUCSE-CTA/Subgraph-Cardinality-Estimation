@@ -142,7 +142,7 @@ namespace daf {
         std::vector<int> dag_sample(query_->GetNumVertices(), -1);
         rwi_sample_count = num_samples;
         int num_root_samples = (root_candidates_.size() >> 6), last_used = 0;
-        num_root_samples = std::min(num_root_samples, 100w);
+        num_root_samples = std::min(num_root_samples, 100);
         num_root_samples = std::max(num_root_samples, 10);
         num_root_samples = std::min(num_root_samples, (int)root_candidates_.size());
         while (rwi_sample_count > 0) {
