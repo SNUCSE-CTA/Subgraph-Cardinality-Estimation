@@ -5,12 +5,11 @@
 #include "global/timer.h"
 
 namespace daf {
-    bool is_data_sparse = true;
 
     BipartiteMaximumMatching BPSolver, BPTSolver;
     int num_edges[MAX_QUERY_VERTEX][MAX_QUERY_VERTEX], num_cur_edges[MAX_QUERY_VERTEX][MAX_QUERY_VERTEX];;
 
-    CandidateSpace::CandidateSpace(DataGraph *data) {
+    CandidateSpace::CandidateSpace(DataGraph *data, FilterOption filter_option) {
         data_ = data;
         BitsetCS = new bool*[MAX_QUERY_VERTEX];
         for (int i = 0; i < MAX_QUERY_VERTEX; i++) {
@@ -25,11 +24,7 @@ namespace daf {
         neighbor_label_frequency.resize(data->GetNumVertices());
         num_visit_cs_ = new QueryDegree[data_->GetNumVertices()];
         candidate_set_.resize(MAX_QUERY_VERTEX);
-        is_data_sparse = data_->is_sparse();
-        if (!is_data_sparse) {
-            opt.structure_filter = NO_STRUCTURE_FILTER;
-        }
-        opt.print();
+        opt = filter_option;
     }
 
     CandidateSpace::~CandidateSpace() {
@@ -66,8 +61,10 @@ namespace daf {
             candidate_set_[i].clear();
         }
         dag_->BuildDAG(-1);
-        if (!FilterByTopDownWithInit()) return false;
-
+        if (!FilterByTopDownWithInit()) {
+            fprintf(stderr, "INITIALIZATION FAILED\n");
+            exit(4);
+        }
         Timer csfilter_timer; csfilter_timer.Start();
         Filter(false);
         csfilter_timer.Stop();
@@ -81,12 +78,14 @@ namespace daf {
         bool result = true;
         result = InitRootCandidates();
         if (!result) return false;
+
         for (Size i = 1; i < query_->GetNumVertices(); ++i) {
             Vertex cur = dag_->GetVertexOrderedByBFS(i);
             Label cur_label = query_->GetLabel(cur);
             QueryDegree num_parent = 0, needed = dag_->GetNumParents(cur);
-            for (Size i = 0; i < dag_->GetNumParents(cur); ++i) {
-                Vertex parent = dag_->GetParent(cur, i);
+
+            for (Size p = 0; p < dag_->GetNumParents(cur); p++) {
+                Vertex parent = dag_->GetParent(cur, p);
                 int query_edge_idx = query_->GetEdgeIndex(parent, cur);
                 for (Vertex parent_cand : candidate_set_[parent]) {
                     for (int data_edge_idx : data_->GetIncidentEdges(parent_cand, cur_label)) {
@@ -95,16 +94,17 @@ namespace daf {
                         if (data_->GetDegree(cand) < query_->GetDegree(cur)) break;
                         if (data_->GetCoreNum(cand) < query_->GetCoreNum(cur)) continue;
                         for (int l = 0; l < data_->GetNumLabels(); l++) {
-                            if (data_->GetNeighborLabelFrequency(cand, l) < query_->GetNeighborLabelFrequency(cur, l)){
+                            if (data_->incident_edges_[cand][l].size() < query_->incident_edges_[cur][l].size()) {
                                 goto nxt_candidate;
                             }
                         }
-                        if (data_->GetNumLocalTriangles(data_edge_idx) < query_->GetNumLocalTriangles(query_edge_idx)) continue;
-                        if (data_->num_four_cycles_indexed > 0 and
+                        if (opt.structure_filter >= TRIANGLE_SAFETY and
+                            data_->GetNumLocalTriangles(data_edge_idx) < query_->GetNumLocalTriangles(query_edge_idx)) continue;
+                        if (opt.structure_filter >= FOURCYCLE_SAFETY and data_->num_four_cycles_indexed > 0 and
                             data_->GetNumLocalFourCycles(data_edge_idx) < query_->GetNumLocalFourCycles(query_edge_idx)) continue;
                         if (num_visit_cs_[cand] == num_parent) {
                             num_visit_cs_[cand] += 1;
-                            if (num_visit_cs_[cand] == needed) {
+                            if (num_visit_cs_[cand] == 1) {
                                 candidate_set_[cur].emplace_back(cand);
                                 BitsetCS[cur][cand] = true;
                             }
@@ -115,23 +115,27 @@ namespace daf {
                 }
                 num_parent += 1;
             }
-
+//            fprintf(stdout, "Candidate for %d : %d elements\n", cur, candidate_set_[cur].size());
             for (Size j = 0; j < candidate_set_[cur].size(); ++j) {
                 Vertex cand = candidate_set_[cur][j];
+//                printf("  %d...",cand);
                 BitsetCS[cur][cand] = false;
                 if (num_visit_cs_[cand] == num_parent) {
+//                    printf("ok\n");
                     BitsetCS[cur][cand] = true;
                 }
                 else {
+//                    printf("has %d parents only (%d needed)\n", num_visit_cs_[cand], num_parent);
                     candidate_set_[cur][j] = candidate_set_[cur].back();
                     candidate_set_[cur].pop_back();
                     j--;
                 }
                 num_visit_cs_[cand] = 0;
             }
+//            fprintf(stdout, "====> %d elements left\n",candidate_set_[cur].size());
             if (candidate_set_[cur].empty()) {
                 result = false;
-                break;
+                exit(2);
             }
         }
 
@@ -141,8 +145,10 @@ namespace daf {
                 int q_nxt = query_->to_[q_edge_idx];
                 for (int j : candidate_set_[i]) {
                     for (int d_edge_idx : data_->GetIncidentEdges(j, query_->GetLabel(q_nxt))) {
-                        if (data_->GetNumLocalTriangles(d_edge_idx) < query_->GetNumLocalTriangles(q_edge_idx)) continue;
-                        if (is_data_sparse and data_->GetNumLocalFourCycles(d_edge_idx) < query_->GetNumLocalFourCycles(q_edge_idx)) continue;
+                        if (opt.structure_filter >= TRIANGLE_SAFETY and
+                            data_->GetNumLocalTriangles(d_edge_idx) < query_->GetNumLocalTriangles(q_edge_idx)) continue;
+                        if (opt.structure_filter >= FOURCYCLE_SAFETY and data_->num_four_cycles_indexed > 0 and
+                            data_->GetNumLocalFourCycles(d_edge_idx) < query_->GetNumLocalFourCycles(q_edge_idx)) continue;
                         int d_nxt = data_->to_[d_edge_idx];
                         if (BitsetCS[q_nxt][d_nxt]) {
                             BitsetEdgeCS[q_edge_idx][d_edge_idx] = true;
@@ -318,17 +324,28 @@ namespace daf {
     bool CandidateSpace::FourCycleSafety(int query_edge_id, int data_edge_id) {
         if (data_->num_four_cycles_indexed == 0) return FourCycleSafetyOnline(query_edge_id, data_edge_id);
         if (query_->four_cycles[query_edge_id].size() > data_->four_cycles[data_edge_id].size()) return false;
-        for (auto &q_info : query_->four_cycles[query_edge_id]) {
-            for (auto &d_info : data_->four_cycles[data_edge_id]) {
-                if (!BitsetEdgeCS[q_info.third_edge_idx][d_info.third_edge_idx]) continue;
-                if (!BitsetEdgeCS[q_info.fourth_edge_idx][d_info.fourth_edge_idx]) continue;
-                if (!BitsetEdgeCS[q_info.opp_edge_idx][d_info.opp_edge_idx]) continue;
-                if (q_info.one_three_idx != -1 and !EdgeCandidacy(q_info.one_three_idx, d_info.one_three_idx)) continue;
-                if (q_info.two_four_idx != -1 and !EdgeCandidacy(q_info.two_four_idx, d_info.two_four_idx))    continue;
-                goto success;
+        for (int i = 0; i < query_->four_cycles[query_edge_id].size(); i++) {
+            auto &q_info = query_->four_cycles[query_edge_id][i];
+            bool found = false;
+            for (int j = 0; j < data_->four_cycles[data_edge_id].size(); j++) {
+                auto &d_info =  data_->four_cycles[data_edge_id][j];
+                bool validity = true;
+                validity &= BitsetEdgeCS[q_info.third_edge_idx][d_info.third_edge_idx];
+                if (!validity) continue;
+                validity &= BitsetEdgeCS[q_info.fourth_edge_idx][d_info.fourth_edge_idx];
+                if (!validity) continue;
+                validity &= BitsetEdgeCS[q_info.opp_edge_idx][d_info.opp_edge_idx];
+                if (!validity) continue;
+                if (validity and q_info.one_three_idx != -1) validity &= EdgeCandidacy(q_info.one_three_idx, d_info.one_three_idx);
+                if (validity and q_info.two_four_idx != -1) validity &= EdgeCandidacy(q_info.two_four_idx, d_info.two_four_idx);
+                if (validity) {
+                    found = true;
+                    goto nxt_cycle;
+                }
             }
-            return false;
-            success:;
+            if (!found) return false;
+            nxt_cycle:
+            continue;
         }
 //        bool ok = (BPQsolver.solve() == (query_->four_cycles[query_edge_id].size()));
         return true;
@@ -594,6 +611,8 @@ namespace daf {
         fprintf(stderr, "CS-SZ : %u %u\n", CandidateSpaceSize, CandidateEdges);
         fprintf(stdout, "#CandidateSetSize : %u\n", CandidateSpaceSize);
         fprintf(stdout, "#CandidateSetEdges : %u\n", CandidateEdges);
+        fflush(stdout);
+        fflush(stderr);
     }
 
     bool CandidateSpace::InitRootCandidates() {
@@ -604,8 +623,14 @@ namespace daf {
             Vertex cand = data_->GetVertexBySortedLabelOffset(i);
             if (data_->GetDegree(cand) < query_->GetDegree(root)) break;
             if (data_->GetCoreNum(cand) < query_->GetCoreNum(root)) continue;
+            for (int l = 0; l < data_->GetNumLabels(); l++) {
+                if (data_->incident_edges_[cand][l].size() < query_->incident_edges_[root][l].size()) {
+                    goto nxt_candidate;
+                }
+            }
             candidate_set_[root].emplace_back(cand);
             BitsetCS[root][cand] = true;
+            nxt_candidate:;
         }
         return !candidate_set_[root].empty();
     }

@@ -124,7 +124,6 @@ namespace daf {
                 }
             }
         }
-
         delete[] visit;
         delete[] popped;
     }
@@ -142,7 +141,8 @@ namespace daf {
 
 //            if (query_.GetCoreNum(v) < 2) continue;
 
-            double rank = 1.0 / static_cast<double>(d);
+            double rank =
+                    static_cast<double>(init_cand_size_[v]) / static_cast<double>(d);
 
             if (rank < min_rank) {
                 root = v;

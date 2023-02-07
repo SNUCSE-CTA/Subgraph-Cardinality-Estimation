@@ -9,14 +9,17 @@ namespace daf {
 
     TreeSampling::TreeSampling(DataGraph *data, FilterOption opt) {
         data_ = data;
-        CS = new CandidateSpace(data);
+        if (!data_->is_sparse()) {
+            opt.structure_filter = NO_STRUCTURE_FILTER;
+        }
+        opt.print();
+        CS = new CandidateSpace(data, opt);
         seen_.resize(data_->GetNumVertices());
         RWI_ = new RWI(data);
         num_trees_ = new double*[MAX_QUERY_VERTEX];
         for (int i = 0; i < MAX_QUERY_VERTEX; i++) {
             num_trees_[i] = new double[data_->GetNumVertices()];
         }
-        CS->opt = opt;
     }
 
     void TreeSampling::RegisterQuery(QueryGraph *query, DAG *dag) {

@@ -50,8 +50,7 @@ namespace daf {
 
     class CandidateSpace {
     public:
-        CandidateSpace(DataGraph *data);
-        CandidateSpace(DataGraph &data, QueryGraph &query, DAG &dag);
+        CandidateSpace(DataGraph *data, FilterOption filter_option);
 
         ~CandidateSpace();
 
@@ -95,6 +94,8 @@ namespace daf {
         bool **BitsetEdgeCS;
 
         QueryDegree *num_visit_cs_;
+        Vertex *visited_candidates_;
+        Size num_visited_candidates;
 
         bool FilterByTopDownWithInit();
 
@@ -131,6 +132,8 @@ namespace daf {
         bool StructureSafety(int query_edge_id, int data_edge_id);
 
         bool EdgeBipartiteSafety(Vertex cur, Vertex cand);
+
+        void ComputeNbrInformation(Vertex u, Size *max_nbr_degree, uint64_t *nbr_label_bitset);
     };
 
     inline Size CandidateSpace::GetCandidateSetSize(Vertex u) const {

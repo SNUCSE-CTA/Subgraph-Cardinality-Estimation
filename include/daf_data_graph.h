@@ -55,6 +55,15 @@ public:
     bool is_sparse();
     int max_num_trigs;
 
+
+    bool CheckAllNbrLabelExist(Vertex v, uint64_t *nbr_bitset) const;
+
+    Size GetMaxLabelFrequency() const;
+
+    Size GetMaxNbrDegree(Vertex v) const;
+
+    Size GetNbrBitsetSize() const;
+
 private:
     Label *transferred_label_;
     std::pair<Size, Size> *adj_offs_by_label_;
@@ -67,6 +76,7 @@ private:
 
     Size nbr_bitset_size_;
     Size max_label_frequency_;
+
 };
 
 
@@ -86,14 +96,36 @@ inline Size DataGraph::GetVertexBySortedLabelOffset(Size i) const {
     return vertices_sorted_[i];
 }
 
-inline Size DataGraph::GetInitCandSize(Label l, Size d) const {
-    Size s = GetStartOffsetByLabel(l);
-    Size e = GetEndOffsetByLabel(l);
-    auto pos = std::lower_bound(
-            vertices_sorted_ + s, vertices_sorted_ + e, d,
-            [this](Vertex v, Size d) -> bool { return GetDegree(v) >= d; });
-    return pos - (vertices_sorted_ + s);
-}
+
+    inline Size DataGraph::GetNbrBitsetSize() const { return nbr_bitset_size_; }
+
+    inline Size DataGraph::GetMaxNbrDegree(Vertex v) const {
+        return max_nbr_degree_[v];
+    }
+
+    inline Size DataGraph::GetMaxLabelFrequency() const {
+        return max_label_frequency_;
+    }
+
+    inline Size DataGraph::GetInitCandSize(Label l, Size d) const {
+        Size s = GetStartOffsetByLabel(l);
+        Size e = GetEndOffsetByLabel(l);
+        auto pos = std::lower_bound(
+                vertices_sorted_ + s, vertices_sorted_ + e, d,
+                [this](Vertex v, Size d) -> bool { return GetDegree(v) >= d; });
+        return pos - (vertices_sorted_ + s);
+    }
+
+    inline bool DataGraph::CheckAllNbrLabelExist(Vertex v,
+                                                 uint64_t *nbr_bitset) const {
+        for (Size i = 0; i < GetNbrBitsetSize(); ++i) {
+            if ((linear_nbr_bitset_[v * GetNbrBitsetSize() + i] | nbr_bitset[i]) !=
+                linear_nbr_bitset_[v * GetNbrBitsetSize() + i]) {
+                return false;
+            }
+        }
+        return true;
+    }
 
 inline bool DataGraph::is_sparse() {
     return GetNumEdges() / GetNumVertices() < 10;

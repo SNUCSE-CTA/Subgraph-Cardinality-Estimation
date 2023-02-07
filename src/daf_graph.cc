@@ -151,27 +151,45 @@ void Graph::computeCoreNum() {
 }
 
 void Graph::IndexTriangles() {
-    vertex_local_triangles.resize(GetNumVertices(), 0);
     local_triangles.resize(edge_info_.size());
-    int cnt = 0;
+    if (GetNumVertices() <= 100) {
+        for (EdgeInfo e : edge_info_){
+            VertexPair vp = e.vp;
+            auto &va = adj_list[vp.first];
+            auto &vb = adj_list[vp.second];
+            std::vector<int> tmp;
+            std::set_intersection(va.begin(), va.end(), vb.begin(), vb.end(),
+                                  std::back_inserter(tmp));
+
+
+            for (auto &vc : tmp) {
+                TrigInfo t;
+                t.point = vc;
+                t.fst_edge = GetEdgeIndex(vp.first, vc);
+                t.snd_edge = GetEdgeIndex(vp.second, vc);
+                local_triangles[e.index].push_back(t);
+                num_labeled_triangles_[e.index][GetLabel(vc)]++;
+                edge_num_neighbors[e.index][GetLabel(vc)]--;
+            }
+        }
+        return;
+    }
     std::vector<int> common_neighbor(GetNumVertices(), -1);
     for (int i = 0; i < GetNumVertices(); i++) {
         for (int neighbor : adj_list[i]) {
             for (int l = 0; l < GetNumLabels(); l++) {
-                for (int fst_incident : GetIncidentEdges(i, l)) {
+                for (int fst_incident : incident_edges_[i][l]) {
                     int fst_neighbor = opposite(fst_incident, i);
                     common_neighbor[fst_neighbor] = fst_incident;
                 }
-                for (int snd_incident : GetIncidentEdges(neighbor, l)) {
+                for (int snd_incident : incident_edges_[neighbor][l]) {
                     int snd_neighbor = opposite(snd_incident, neighbor);
                     if (common_neighbor[snd_neighbor] != -1) {
                         TrigInfo t;
                         t.point = snd_neighbor;
-                        vertex_local_triangles[t.point]++;
                         t.fst_edge = common_neighbor[snd_neighbor];
                         t.snd_edge = snd_incident;
                         local_triangles[edge_exists[i][neighbor]].push_back(t);
-                        cnt++;
                         num_labeled_triangles_[edge_exists[i][neighbor]][GetLabel(snd_neighbor)]++;
                         edge_num_neighbors[edge_exists[i][neighbor]][GetLabel(snd_neighbor)]--;
                     }
