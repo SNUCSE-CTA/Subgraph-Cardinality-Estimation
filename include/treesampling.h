@@ -13,7 +13,7 @@
 namespace daf {
 class TreeSampling {
 public:
-    TreeSampling(DataGraph *data);
+    TreeSampling(DataGraph *data, FilterOption opt);
     ~TreeSampling();
     TreeSampling &operator=(const TreeSampling &) = delete;
     TreeSampling(const TreeSampling &) = delete;
@@ -30,7 +30,7 @@ public:
 
     std::vector<bool> seen_, query_seen_;
 //    std::vector<std::unordered_map<Vertex, double>> num_trees_;
-    std::vector<std::unordered_map<Vertex, double>> num_trees_;
+    double **num_trees_;
     std::vector<std::vector<std::vector<std::vector<Vertex>>>> sample_candidates_;
     std::vector<std::vector<std::vector<std::vector<double>>>> sample_candidate_weights_;
     std::vector<std::vector<std::vector<std::discrete_distribution<int>>>> sample_dist_;

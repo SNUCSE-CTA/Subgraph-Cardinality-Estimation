@@ -18,12 +18,13 @@ using namespace daf;
 std::string dataset, ans_file_name, data_root;
 //std::string dataset = "human", ans_file_name = dataset+"_ans", data_root = "../../dataset/";
 std::string data_name = "../../dataset/wordnet/data_graph/wordnet.graph";
-std::string query_name = "../../dataset/wordnet/query_graph/query_dense_20_159.graph";
+std::string query_name = "../../dataset/wordnet/query_graph/query_dense_20_110.graph";
 //std::string data_name = "../../dataset/yeast/data_graph/yeast.graph";
-//std::string query_name = "../../dataset/yeast/query_graph/query_dense_32_108.graph";
+//std::string query_name = "../../dataset/yeast/query_graph/query_dense_4_1.graph";
 std::deque<std::string> query_names = {
-//        "../../dataset/wordnet/query_graph/query_dense_20_191.graph",
-        query_name
+        "../../dataset/wordnet/query_graph/query_dense_20_191.graph",
+        query_name,
+        "../../dataset/wordnet/query_graph/query_dense_20_191.graph",
 };
 
 int num_samples = 1000000;
@@ -33,6 +34,7 @@ std::unordered_map<std::string, double> true_cnt;
 
 
 TreeSampling *TSSolver;
+FilterOption FILTERING_OPTION;
 
 void estimate(DataGraph &data, QueryGraph &query) {
     GlobalTimer.Start();
@@ -102,7 +104,29 @@ void loadFullDataset() {
 //        std::cerr << "Ans " << name << " " << true_cnt[name] << std::endl;
     }
 }
+
+void read_filter_option(const std::string& opt, const std::string &filter) {
+    if (opt.substr(2) == "EGONET") {
+        if (filter == "NEIGHBOR_SAFETY")
+            FILTERING_OPTION.egonet_filter = daf::NEIGHBOR_SAFETY;
+        else if (filter == "NEIGHBOR_BIPARTITE_SAFETY")
+            FILTERING_OPTION.egonet_filter = daf::NEIGHBOR_BIPARTITE_SAFETY;
+        else
+            FILTERING_OPTION.egonet_filter = daf::EDGE_BIPARTITE_SAFETY;
+    }
+    else if (opt.substr(2) == "STRUCTURE") {
+        if (filter == "NONE")
+            FILTERING_OPTION.structure_filter = daf::NO_STRUCTURE_FILTER;
+        else if (filter == "TRIANGLE_SAFETY")
+            FILTERING_OPTION.structure_filter = daf::TRIANGLE_SAFETY;
+        else if (filter == "TRIANGLE_BIPARTITE_SAFETY")
+            FILTERING_OPTION.structure_filter = daf::TRIANGLE_BIPARTITE_SAFETY;
+        else
+            FILTERING_OPTION.structure_filter = daf::FOURCYCLE_SAFETY;
+    }
+}
 int main(int argc, char *argv[]) {
+
     for (int i = 1; i < argc; ++i) {
         if (argv[i][0] == '-') {
             switch (argv[i][1]) {
@@ -122,6 +146,9 @@ int main(int argc, char *argv[]) {
                 case 's':
                     num_samples = std::atoi(argv[i + 1]);
                     break;
+                case '-':
+                    read_filter_option(std::string(argv[i]), std::string(argv[i+1]));
+                    break;
             }
         }
     }
@@ -132,11 +159,8 @@ int main(int argc, char *argv[]) {
     std::cout << "Loading data graph..." << std::endl;
     DataGraph data(data_name);
     data.LoadAndProcessGraph();
-    TSSolver = new TreeSampling(&data);
+    TSSolver = new TreeSampling(&data, FILTERING_OPTION);
 
-//    while (query_names.size() >= 100) {
-//        query_names.pop_front();
-//    }
     for (std::string &qname : query_names) {
         q_cnt++;
         query_name = qname;

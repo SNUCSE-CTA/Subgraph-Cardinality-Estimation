@@ -18,7 +18,6 @@ namespace daf {
     struct EdgeInfo {
         int index, edge_label, vsum, to;
         VertexPair vp;
-        boost::dynamic_bitset<uint64_t> edge_candidacy_;
     };
     class Graph {
     public:
@@ -77,7 +76,6 @@ namespace daf {
         std::unordered_map<VertexPair, Size> edge_index_map_;
 
         struct CycleInfo {
-            CycleInfo() {}
             int opp_edge_idx;
             int third, fourth;
             int third_edge_idx, fourth_edge_idx; // tex = 2->3, fex = 1->4
@@ -85,6 +83,13 @@ namespace daf {
         };
 
         int num_four_cycles_indexed, max_four_cycles_indexed;
+
+        struct TrigInfo {
+            int point;
+            int fst_edge, snd_edge;
+        };
+        std::vector<int> vertex_local_triangles;
+        std::vector<std::vector<TrigInfo>> local_triangles;
         std::vector<std::vector<CycleInfo>> four_cycles;
         std::vector<int> degrees;
 
@@ -118,7 +123,15 @@ namespace daf {
 
         Vertex opposite(int edge_idx, Vertex from);
 
-        int GetNumLabeledTriangles(int edge_idx, int label) const;
+        inline int GetNumLocalTriangles(int edge_idx) const;
+        inline int GetNumLabeledTriangles(int edge_idx, int label) const;
+        inline Size GetNeighborLabelFrequency(Vertex v, Label l) const;
+
+        void IndexTriangles();
+
+        inline int GetNumLocalFourCycles(int edge_idx) const;
+
+        void IndexFourCycles();
     };
 
     inline Size Graph::GetNumLabels() const { return num_label_; }
@@ -177,6 +190,17 @@ namespace daf {
         return num_labeled_triangles_[edge_idx][label];
     };
 
+    inline Size Graph::GetNeighborLabelFrequency(Vertex v, Label l) const {
+        return incident_edges_[v][l].size();
+    }
+
+    inline int Graph::GetNumLocalTriangles(int edge_idx) const {
+        return local_triangles[edge_idx].size();
+    }
+
+    inline int Graph::GetNumLocalFourCycles(int edge_idx) const {
+        return four_cycles[edge_idx].size();
+    }
 }
 
 #endif  // GRAPH_H_

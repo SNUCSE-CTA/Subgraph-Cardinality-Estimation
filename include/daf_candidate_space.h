@@ -15,6 +15,39 @@
 #include "include/daf_query_graph.h"
 
 namespace daf {
+    enum STRUCTURE_FILTER {
+        NO_STRUCTURE_FILTER,
+        TRIANGLE_SAFETY,
+        TRIANGLE_BIPARTITE_SAFETY,
+        FOURCYCLE_SAFETY
+    };
+    enum EGONET_FILTER {
+        NEIGHBOR_SAFETY,
+        NEIGHBOR_BIPARTITE_SAFETY,
+        EDGE_BIPARTITE_SAFETY
+    };
+
+    struct FilterOption {
+        STRUCTURE_FILTER structure_filter = FOURCYCLE_SAFETY;
+        EGONET_FILTER egonet_filter = EDGE_BIPARTITE_SAFETY;
+        void print() {
+            fprintf(stderr, "Filtering Level : Struct[%d] Egonet[%d]\n", structure_filter, egonet_filter);
+            fprintf(stdout, "Filtering Level : Struct[%d] Egonet[%d]\n", structure_filter, egonet_filter);
+        }
+    };
+
+
+    struct variable {
+        double priority;
+        int stage, which;
+        bool operator>(const variable &o) const {
+            return priority > o.priority;
+        }
+        bool operator<(const variable &o) const {
+            return priority < o.priority;
+        }
+    };
+
     class CandidateSpace {
     public:
         CandidateSpace(DataGraph *data);
@@ -32,10 +65,12 @@ namespace daf {
 
         std::vector<std::vector<std::vector<std::vector<int>>>> cs_edge_;
 
-
+        FilterOption opt;
         void printCS();
         bool BuildCS(QueryGraph *query, DAG *dag);
         std::vector<std::vector <Vertex>> candidate_set_;
+        std::vector<int> neighbor_label_frequency;
+        bool *in_neighbor_cs;
     private:
         DataGraph *data_;
         QueryGraph *query_;
@@ -60,20 +95,12 @@ namespace daf {
         bool **BitsetEdgeCS;
 
         QueryDegree *num_visit_cs_;
-        Vertex *visited_candidates_;
-        Size num_visited_candidates;
-
-
-        int num_cs_edges_;
 
         bool FilterByTopDownWithInit();
 
         void ConstructCS();
 
         bool InitRootCandidates();
-
-        void ComputeNbrInformation(Vertex u, Size *max_nbr_degree,
-                                   uint64_t *label_set);
 
         bool BipartiteSafety(Vertex cur, Vertex cand);
 
@@ -87,16 +114,23 @@ namespace daf {
 
         bool CheckNeighborSafety(Vertex cur, Vertex cand);
 
-        bool EdgeSafety(int query_edge_id, int data_edge_id);
-
         bool EdgeCandidacy(int query_edge_id, int data_edge_id);
 
         bool TriangleSafety(int query_edge_id, int data_edge_id);
+        bool TriangleBipartiteSafety(int query_edge_id, int data_edge_id);
 
         bool FourCycleSafety(int query_edge_id, int data_edge_id);
         bool FourCycleSafetyOnline(int query_edge_id, int data_edge_id);
 
         bool BipartiteEdgeSafety(Vertex cur, Vertex cand, Vertex nxt, Vertex nxt_cand);
+
+        bool StructureFilter(int cur, int cand);
+
+        bool EgonetFilter(int cur, int cand);
+
+        bool StructureSafety(int query_edge_id, int data_edge_id);
+
+        bool EdgeBipartiteSafety(Vertex cur, Vertex cand);
     };
 
     inline Size CandidateSpace::GetCandidateSetSize(Vertex u) const {

@@ -129,6 +129,9 @@ namespace daf {
         delete[] popped;
     }
 
+
+    // large d Initial CS : 257697 vertex, 2915580 edges  Initial CS : 208568 vertex, 2186388 edges
+    // small d Initial CS : 273226 vertex, 2861290 edges  Initial CS : 197626 vertex, 2038474 edges
     Vertex DAG::SelectRootVertex() {
         Vertex root = 0;
         double min_rank = std::numeric_limits<double>::max();
@@ -137,17 +140,15 @@ namespace daf {
             Size d = query_.GetDegree(v);
             init_cand_size_[v] = data_.GetInitCandSize(l, d);
 
-            if (query_.GetCoreNum(v) < 2 && !query_.IsTree()) continue;
+//            if (query_.GetCoreNum(v) < 2) continue;
 
-            double rank =
-                    static_cast<double>(init_cand_size_[v]) / static_cast<double>(d);
+            double rank = 1.0 / static_cast<double>(d);
 
             if (rank < min_rank) {
                 root = v;
                 min_rank = rank;
             }
         }
-
         return root;
     }
 }  // namespace daf

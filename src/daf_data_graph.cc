@@ -209,38 +209,11 @@ void DataGraph::LoadAndProcessGraph() {
     std::cout << "Incidence_ok! : ";
     if (is_sparse()) {
         num_labeled_triangles_.resize(edge_id, std::vector<int>(GetNumLabels()));
-        trigvertex.resize(edge_id);
+
         edge_num_neighbors.resize(edge_info_.size(), std::vector<int>(GetNumLabels(), 0));
         std::cout << "Working on triangles...." << std::endl;
-        std::vector<int> common_neighbor(GetNumVertices(), -1);
         int trig_count = 0;
-        for (int i = 0; i < GetNumVertices(); i++) {
-            for (int neighbor : adj_list[i]) {
-                for (int l = 0; l < GetNumLabels(); l++) {
-                    for (int fst_incident : GetIncidentEdges(i, l)) {
-                        int fst_neighbor = opposite(fst_incident, i);
-                        common_neighbor[fst_neighbor] = fst_incident;
-                    }
-                    for (int snd_incident : GetIncidentEdges(neighbor, l)) {
-                        int snd_neighbor = opposite(snd_incident, neighbor);
-                        if (common_neighbor[snd_neighbor] != -1) {
-                            trigvertex[edge_exists[i][neighbor]][snd_neighbor] = {common_neighbor[snd_neighbor], snd_incident};
-                            num_labeled_triangles_[edge_exists[i][neighbor]][GetLabel(snd_neighbor)]++;
-                            edge_num_neighbors[edge_exists[i][neighbor]][GetLabel(snd_neighbor)]--;
-                            trig_count++;
-                        }
-                    }
-                    for (int fst_incident : GetIncidentEdges(i, l)) {
-                        int fst_neighbor = opposite(fst_incident, i);
-                        common_neighbor[fst_neighbor] = -1;
-                    }
-                }
-            }
-            if (i % 50000 == 0) {
-                fprintf(stderr, "%d / %d found %d trigs\n",i,GetNumVertices(), trig_count);
-            }
-        }
-
+        IndexTriangles();
         max_num_trigs = 0;
         for (EdgeInfo e : edge_info_) {
             VertexPair vp = e.vp;
@@ -248,13 +221,11 @@ void DataGraph::LoadAndProcessGraph() {
                 edge_num_neighbors[e.index][i] += GetIncidentEdges(vp.first, i).size();
                 edge_num_neighbors[e.index][i] += GetIncidentEdges(vp.second, i).size();
             }
-            max_num_trigs = std::max(max_num_trigs, (int)trigvertex[e.index].size());
+            trig_count += local_triangles[e.index].size();
+            max_num_trigs = std::max(max_num_trigs, (int)local_triangles[e.index].size());
         }
 
         std::cout << "Total # of trigs : " << trig_count << std::endl;
-
-        four_cycles.resize(edge_id);
-
         double num_4c_cand = 0.0;
         for (int i = 0; i < GetNumVertices(); i++) {
             for (int cand_edge: all_incident_edges_[i]) {
@@ -262,43 +233,9 @@ void DataGraph::LoadAndProcessGraph() {
                 num_4c_cand += all_incident_edges_[i].size() * all_incident_edges_[nxt_cand].size();
             }
         }
+        num_four_cycles_indexed = 0;
         if (num_4c_cand < 1e10) {
-            num_four_cycles_indexed = 0;
-            for (int i = 0; i < GetNumVertices(); i++) {
-                for (int cand_edge : all_incident_edges_[i]) {
-                    int nxt_cand = opposite(cand_edge, i);
-                    int indexed_cnt = 0;
-                    for (int third_edge_idx : all_incident_edges_[nxt_cand]) {
-                        int third_cand = opposite(third_edge_idx, nxt_cand);
-                        if (third_cand == i) continue;
-                        for (int opp_edge_idx : all_incident_edges_[third_cand]) {
-                            int fourth_cand = opposite(opp_edge_idx, third_cand);
-                            if (fourth_cand == nxt_cand) continue;
-                            int fourth_edge_idx = GetEdgeIndex(i, fourth_cand);
-                            if (fourth_edge_idx != -1) {
-                                CycleInfo c_info;
-                                c_info.opp_edge_idx = opp_edge_idx;
-                                c_info.third_edge_idx = third_edge_idx;
-                                c_info.fourth_edge_idx = fourth_edge_idx;
-                                c_info.third = third_cand;
-                                c_info.fourth = fourth_cand;
-
-                                c_info.one_three_idx = GetEdgeIndex(i, third_cand);
-                                c_info.two_four_idx = GetEdgeIndex(nxt_cand, fourth_cand);
-
-                                four_cycles[cand_edge].push_back(c_info);
-                                indexed_cnt++;
-                            }
-                        }
-                    }
-                    num_four_cycles_indexed += indexed_cnt;
-//                    fprintf(stderr, "Edge %d: found %d quads\n",cand_edge, indexed_cnt);
-//                    fflush(stderr);
-                    max_four_cycles_indexed = std::max(max_four_cycles_indexed, (int)four_cycles[cand_edge].size());
-                }
-//                if (i % 30000 == 0) {
-//                }
-            }
+            IndexFourCycles();
             std::cout << "Total # of quads : " << num_four_cycles_indexed << std::endl;
         }
         else {

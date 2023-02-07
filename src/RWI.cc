@@ -148,7 +148,6 @@ namespace daf {
         while (rwi_sample_count > 0) {
             if (rwi_sample_count < last_used / 10) break;
             memset(local_candidate_size, 0, query_->GetNumVertices());
-//            dag_sample[root] = root_candidates_[ht_count % root_candidates_.size()];
             dag_sample[root] = (ht_count % root_candidates_.size());
             int num_sample_use = std::min(rwi_sample_count, num_samples / num_root_samples);
             auto recursion_result = SampleDAGVertex(dag_sample, 1, num_sample_use);

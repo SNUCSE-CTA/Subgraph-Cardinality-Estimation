@@ -4,13 +4,7 @@ QueryGraph::QueryGraph(const std::string &filename) : Graph(filename) {
     myname = filename;
 }
 
-QueryGraph::~QueryGraph() {
-    delete[] NEC_map_;
-    delete[] NEC_elems_;
-
-    if (NEC_start_offs_) delete[] NEC_start_offs_;
-    delete[] NEC_size_;
-}
+QueryGraph::~QueryGraph() {}
 
 bool QueryGraph::ProcessLabeledGraph(const DataGraph &data) {
     std::fill(label_frequency_, label_frequency_ + data.GetNumLabels(), 0);
@@ -41,20 +35,10 @@ bool QueryGraph::ProcessLabeledGraph(const DataGraph &data) {
     // preprocess for query graph
     computeCoreNum();
 
-    is_tree_ = true;
-    for (Vertex v = 0; v < GetNumVertices(); ++v) {
-        if (GetCoreNum(v) > 1) {
-            is_tree_ = false;
-            break;
-        }
-    }
-
-    ExtractResidualStructure();
     // sort back
     for (auto &it : adj_list) {
         std::sort(it.begin(), it.end());
     }
-
 
     all_incident_edges_.resize(num_vertex_);
     incident_edges_.resize(num_vertex_);
@@ -93,72 +77,14 @@ bool QueryGraph::ProcessLabeledGraph(const DataGraph &data) {
     edge_num_neighbors.resize(edge_info_.size(), std::vector<int>(data.GetNumLabels(), 0));
     four_cycles.resize(edge_info_.size());
     triangles.resize(edge_id, std::vector<Vertex>());
-    trigvertex.resize(edge_id);
 
-    Size num_four_cycles = 0;
     Size num_three_cycles = 0;
-    trig_empty.resize(edge_info_.size());
-    quad_empty.resize(edge_info_.size());
     num_labeled_triangles_.resize(edge_id, std::vector<int>(data.GetNumLabels()));
-    for (EdgeInfo e : edge_info_){
-        VertexPair vp = e.vp;
-        auto &va = adj_list[vp.first];
-        auto &vb = adj_list[vp.second];
-        std::set_intersection(va.begin(), va.end(), vb.begin(), vb.end(),
-                              std::back_inserter(triangles[e.index]));
-
-        for (int i = 0; i < GetNumLabels(); i++) {
-            edge_num_neighbors[e.index][i] += GetIncidentEdges(vp.first, i).size();
-            edge_num_neighbors[e.index][i] += GetIncidentEdges(vp.second, i).size();
-        }
-
-        for (auto &vc : triangles[e.index]) {
-            trigvertex[e.index][vc] = {GetEdgeIndex(vp.first, vc), GetEdgeIndex(vp.second, vc)};
-            num_labeled_triangles_[e.index][GetLabel(vc)]++;
-            edge_num_neighbors[e.index][GetLabel(vc)]--;
-        }
-        num_three_cycles += triangles[e.index].size();
-
-        edge_id = edge_index_map_[vp];
-    }
+    IndexTriangles();
     num_four_cycles_indexed = 0;
-    four_cycles.resize(edge_info_.size());
-    for (int i = 0; i < GetNumVertices(); i++) {
-        for (int cand_edge: all_incident_edges_[i]) {
-            int nxt_cand = opposite(cand_edge, i);
-            for (int third_edge_idx: all_incident_edges_[nxt_cand]) {
-                int third_cand = opposite(third_edge_idx, nxt_cand);
-                if (third_cand == i) continue;
-                for (int opp_edge_idx: all_incident_edges_[third_cand]) {
-                    int fourth_cand = opposite(opp_edge_idx, third_cand);
-                    if (fourth_cand == nxt_cand) continue;
-                    int fourth_edge_idx = GetEdgeIndex(i, fourth_cand);
-                    if (fourth_edge_idx != -1) {
-                        CycleInfo c_info;
-                        c_info.opp_edge_idx = opp_edge_idx;
-                        c_info.third_edge_idx = third_edge_idx;
-                        c_info.fourth_edge_idx = fourth_edge_idx;
-                        c_info.third = third_cand;
-                        c_info.fourth = fourth_cand;
-
-                        c_info.one_three_idx = GetEdgeIndex(i, third_cand);
-                        c_info.two_four_idx = GetEdgeIndex(nxt_cand, fourth_cand);
-
-                        four_cycles[cand_edge].push_back(c_info);
-                        num_four_cycles_indexed++;
-                    }
-                }
-            }
-            max_four_cycles_indexed = std::max(max_four_cycles_indexed, (int)four_cycles[cand_edge].size());
-        }
-    }
+    IndexFourCycles();
     for (int i = 0; i < edge_id; i++) {
-        if (triangles[i].empty()) {
-            trig_empty[i] = true;
-        }
-        if (four_cycles[i].empty()) {
-            quad_empty[i] = true;
-        }
+        num_three_cycles += local_triangles[i].size();
     }
     fprintf(stdout, "QUERY (V, E) = (%u, %u)\n",GetNumVertices(), GetNumEdges());
     fprintf(stdout, "NUM_QUERY_CYCLES = 3[%u] 4[%u]\n",num_three_cycles,num_four_cycles_indexed);
@@ -180,91 +106,4 @@ bool QueryGraph::LoadAndProcessGraph(const DataGraph &data) {
     core_num_ = new Size[GetNumVertices()];
 
     return ProcessLabeledGraph(data);
-}
-
-namespace {
-    struct NECInfo {
-        bool visit = false;
-        Vertex representative;
-        Size NEC_elems_idx;
-    };
-}  // namespace
-
-void QueryGraph::ExtractResidualStructure() {
-    NECInfo *NEC_infos_temp = new NECInfo[GetNumVertices() * (max_label_ + 1)];
-    NEC_elems_ = new NECElement[GetNumVertices()];
-    NEC_map_ = new Vertex[GetNumVertices()];
-    NEC_size_ = new Size[GetNumVertices()];
-
-    Size num_NEC_elems_ = 0;
-
-    std::fill(NEC_map_, NEC_map_ + GetNumVertices(), INVALID_VTX);
-    std::fill(NEC_size_, NEC_size_ + GetNumVertices(), 0);
-
-    num_non_leaf_vertices_ = GetNumVertices();
-
-    // construct NEC map
-    for (Vertex v = 0; v < GetNumVertices(); ++v) {
-        if (GetDegree(v) == 1) {
-            Vertex p = GetNeighbor(GetStartOffset(v));
-            Label l = GetLabel(v);
-
-            NECInfo &info = NEC_infos_temp[GetNumVertices() * l + p];
-            if (!info.visit) {
-                info = {true, v, num_NEC_elems_};
-                NEC_map_[v] = v;
-
-                for (Size nbr_idx = GetStartOffset(p); nbr_idx < GetEndOffset(p);
-                     ++nbr_idx) {
-                    Vertex nbr = GetNeighbor(nbr_idx);
-                    if (nbr == v) {
-                        NEC_elems_[num_NEC_elems_] = {l, p, v, 0,
-                                                      nbr_idx - GetStartOffset(p)};
-                        break;
-                    }
-                }
-                num_NEC_elems_ += 1;
-            }
-            else {
-                NEC_map_[v] = info.representative;
-            }
-            NEC_size_[info.representative] += 1;
-            NEC_elems_[info.NEC_elems_idx].size += 1;
-            num_non_leaf_vertices_ -= 1;
-        }
-        else {
-            NEC_size_[v] += 1;
-        }
-    }
-
-    for (Vertex v = 0; v < GetNumVertices(); ++v) {
-        NEC_size_[v] = NEC_size_[GetNECRepresentative(v)];
-    }
-
-    num_NEC_label_ = 0;
-    NEC_start_offs_ = nullptr;
-    if (num_NEC_elems_ > 0) {
-        // sort NEC elems by label
-        std::sort(NEC_elems_, NEC_elems_ + num_NEC_elems_,
-                  [](const NECElement &a, const NECElement &b) -> bool {
-                      return a.label < b.label;
-                  });
-
-        // construct start offsets of NEC elems for same label
-        NEC_start_offs_ = new Size[GetNumVertices() + 1];
-        NEC_start_offs_[0] = 0;
-        num_NEC_label_ += 1;
-
-        Label prev_label = NEC_elems_[0].label;
-        for (Size i = 1; i < num_NEC_elems_; ++i) {
-            if (NEC_elems_[i].label != prev_label) {
-                prev_label = NEC_elems_[i].label;
-                NEC_start_offs_[num_NEC_label_] = i;
-                num_NEC_label_ += 1;
-            }
-        }
-        NEC_start_offs_[num_NEC_label_] = num_NEC_elems_;
-    }
-
-    delete[] NEC_infos_temp;
 }
