@@ -11,6 +11,8 @@ namespace daf {
         children_.resize(qV);
         tree_children_.resize(qV);
         parents_.resize(qV);
+        dag_parent_edges_.resize(qV);
+        dag_child_edges_.resize(qV);
         tree_parent_.resize(qV);
         tree_neighbors_.resize(qV);
         init_cand_size_.resize(qV);
@@ -112,7 +114,9 @@ namespace daf {
                         // build edge from parent to child
                         bfs_level_[child] = bfs_level_[parent] + 1;
                         children_[parent].push_back(child);
+                        dag_child_edges_[parent].push_back(query_.GetEdgeIndex(parent, child));
                         parents_[child].push_back(parent);
+                        dag_parent_edges_[child].push_back(query_.GetEdgeIndex(child, parent));
 
                         if (!visit[child]) {
                             visit[child] = true;
@@ -128,9 +132,6 @@ namespace daf {
         delete[] popped;
     }
 
-
-    // large d Initial CS : 257697 vertex, 2915580 edges  Initial CS : 208568 vertex, 2186388 edges
-    // small d Initial CS : 273226 vertex, 2861290 edges  Initial CS : 197626 vertex, 2038474 edges
     Vertex DAG::SelectRootVertex() {
         Vertex root = 0;
         double min_rank = std::numeric_limits<double>::max();
@@ -138,8 +139,6 @@ namespace daf {
             Label l = query_.GetLabel(v);
             Size d = query_.GetDegree(v);
             init_cand_size_[v] = data_.GetInitCandSize(l, d);
-
-//            if (query_.GetCoreNum(v) < 2) continue;
 
             double rank =
                     static_cast<double>(init_cand_size_[v]) / static_cast<double>(d);

@@ -15,12 +15,12 @@
 
 using namespace daf;
 
-//std::string dataset, ans_file_name, data_root;
-std::string dataset = "yeast", ans_file_name = dataset+"_ans", data_root = "../../dataset/";
-//std::string data_name = "../../dataset/wordnet/data_graph/wordnet.graph";
-//std::string query_name = "../../dataset/wordnet/query_graph/query_dense_20_110.graph";
-std::string data_name = "../../dataset/yeast/data_graph/yeast.graph";
-std::string query_name = "../../dataset/yeast/query_graph/query_dense_24_159.graph";
+std::string dataset, ans_file_name, data_root;
+//std::string dataset = "yeast", ans_file_name = dataset+"_ans", data_root = "../../dataset/";
+std::string data_name = "../../dataset/wordnet/data_graph/wordnet.graph";
+std::string query_name = "../../dataset/wordnet/query_graph/query_dense_20_159.graph";
+//std::string data_name = "../../dataset/yeast/data_graph/yeast.graph";
+//std::string query_name = "../../dataset/yeast/query_graph/query_dense_24_159.graph";
 std::deque<std::string> query_names = {
         query_name
 };
@@ -158,6 +158,7 @@ int main(int argc, char *argv[]) {
     DataGraph data(data_name);
     data.LoadAndProcessGraph();
 
+//    FILTERING_OPTION.refinement_order = DAG_DP;
 //    FILTERING_OPTION.structure_filter = daf::NO_STRUCTURE_FILTER;
 //    FILTERING_OPTION.egonet_filter = daf::NEIGHBOR_SAFETY;
     TSSolver = new TreeSampling(&data, FILTERING_OPTION);

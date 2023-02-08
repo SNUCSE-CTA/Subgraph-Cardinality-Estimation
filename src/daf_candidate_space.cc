@@ -66,7 +66,12 @@ namespace daf {
             exit(4);
         }
         Timer csfilter_timer; csfilter_timer.Start();
-        Filter(false);
+        if (opt.refinement_order == PRIORITY_FIRST) {
+            Filter(true);
+        }
+        else {
+            Filter(false);
+        }
         csfilter_timer.Stop();
         fprintf(stdout, "CS prune time : %.02lf ms\n",csfilter_timer.GetTime());
         ConstructCS();
@@ -359,12 +364,21 @@ namespace daf {
             case TRIANGLE_BIPARTITE_SAFETY:
                 return TriangleBipartiteSafety(query_edge_id, data_edge_id);
             case FOURCYCLE_SAFETY:
-                return TriangleBipartiteSafety(query_edge_id, data_edge_id) and FourCycleSafety(query_edge_id, data_edge_id);
+                return TriangleSafety(query_edge_id, data_edge_id) and FourCycleSafety(query_edge_id, data_edge_id);
         }
         return true;
     }
-    bool CandidateSpace::StructureFilter(int cur, int cand) {
-        for (int query_edge_idx : query_->all_incident_edges_[cur]) {
+    bool CandidateSpace::StructureFilter(int cur, int cand, int direction) {
+        std::vector<int>* query_neighbors = &(query_->all_incident_edges_[cur]);
+        if (direction == -1) {
+            // for bottom-up
+            query_neighbors = &(dag_->dag_child_edges_[cur]);
+        }
+        else if (direction == 1) {
+            // for top-down
+            query_neighbors = &(dag_->dag_parent_edges_[cur]);
+        }
+        for (int query_edge_idx : *query_neighbors) {
             int nxt = query_->to_[query_edge_idx];
             int nxt_label = query_->GetLabel(nxt);
             bool found = false;
@@ -486,7 +500,7 @@ namespace daf {
                 return EdgeBipartiteSafety(cur, cand);
         }
     }
-    bool CandidateSpace::Filter(bool topdown) {
+    bool CandidateSpace::Filter(bool priority_first) {
         std::vector<int> local_stage(query_->GetNumVertices(), 0);
         std::vector<double> priority(query_->GetNumVertices(), 0);
         std::priority_queue<variable> candidate_queue;
@@ -498,6 +512,8 @@ namespace daf {
         int queue_pop_count = 0;
         int maximum_queue_cnt = 5 * query_->GetNumVertices();
         int current_stage = 0;
+        if (!priority_first) goto dag_dp;
+        fprintf(stderr, "Priority-First Cand Filtering\n");
         while (!candidate_queue.empty()) {
             memcpy(num_cur_edges, num_edges, sizeof(num_edges));
             auto [pri, stage, cur] = candidate_queue.top();
@@ -517,7 +533,7 @@ namespace daf {
                 Vertex cand = candidate_set_[cur][i];
                 bool valid = true;
                 if (opt.structure_filter > NO_STRUCTURE_FILTER) {
-                    valid = StructureFilter(cur, cand);
+                    valid = StructureFilter(cur, cand, 0);
                 }
                 if (valid) valid = EgonetFilter(cur, cand);
                 if (!valid) {
@@ -562,6 +578,49 @@ namespace daf {
                 local_stage[nxt] = current_stage;
 //                fprintf(stderr, "    Cur=[%d] pushes Nxt=[%d] with priority %lf\n",cur,nxt,priority[nxt]);
                 candidate_queue.push({priority[nxt], current_stage, nxt});
+            }
+        }
+        return true;
+        dag_dp:
+        fprintf(stderr, "DAG-DP Cand Filtering\n");
+        for (int iteration = 0; iteration < 3; iteration++) {
+            bool topdown = iteration % 2 == 0;
+            for (Size id = 0; id < query_->GetNumVertices(); id++) {
+                Size query_idx = topdown ? id : query_->GetNumVertices() - id - 1;
+                Vertex cur = dag_->GetVertexOrderedByBFS(query_idx);
+                if (GetDAGNextCount(cur, topdown) == 0) continue;
+                for (int i = 0; i < candidate_set_[cur].size(); i++) {
+                    Vertex cand = candidate_set_[cur][i];
+                    bool valid = true;
+                    if (opt.structure_filter > NO_STRUCTURE_FILTER) {
+                        valid = StructureFilter(cur, cand, topdown ? 1 : -1);
+                    }
+                    if (valid) valid = EgonetFilter(cur, cand);
+                    if (!valid) {
+                        int removed = candidate_set_[cur][i];
+                        for (int query_edge_idx : query_->all_incident_edges_[cur]) {
+                            int nxt = query_->to_[query_edge_idx];
+                            for (int data_edge_idx : data_->GetIncidentEdges(removed, query_->GetLabel(nxt))) {
+                                int nxt_cand = data_->to_[data_edge_idx];
+                                if (data_->GetDegree(nxt_cand) < query_->GetDegree(nxt)) break;
+                                if (BitsetEdgeCS[query_edge_idx][data_edge_idx]) {
+                                    num_cur_edges[cur][nxt]--;
+                                    num_cur_edges[nxt][cur]--;
+                                    BitsetEdgeCS[query_edge_idx][data_edge_idx] = false;
+                                    BitsetEdgeCS[query_->opposite_edge[query_edge_idx]][data_->opposite_edge[data_edge_idx]] = false;
+                                }
+                            }
+                        }
+                        candidate_set_[cur][i] = candidate_set_[cur].back();
+                        candidate_set_[cur].pop_back();
+                        --i;
+                        BitsetCS[cur][cand] = false;
+                    }
+                }
+
+                if (candidate_set_[cur].empty()) {
+                    exit(2);
+                }
             }
         }
         return true;

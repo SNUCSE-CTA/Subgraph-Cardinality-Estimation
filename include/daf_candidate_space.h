@@ -26,10 +26,14 @@ namespace daf {
         NEIGHBOR_BIPARTITE_SAFETY,
         EDGE_BIPARTITE_SAFETY
     };
-
+    enum REFINEMENT_ORDER {
+        DAG_DP,
+        PRIORITY_FIRST
+    };
     struct FilterOption {
         STRUCTURE_FILTER structure_filter = FOURCYCLE_SAFETY;
         EGONET_FILTER egonet_filter = EDGE_BIPARTITE_SAFETY;
+        REFINEMENT_ORDER refinement_order = PRIORITY_FIRST;
         void print() {
             fprintf(stderr, "Filtering Level : Struct[%d] Egonet[%d]\n", structure_filter, egonet_filter);
             fprintf(stdout, "Filtering Level : Struct[%d] Egonet[%d]\n", structure_filter, egonet_filter);
@@ -105,7 +109,7 @@ namespace daf {
 
         bool BipartiteSafety(Vertex cur, Vertex cand);
 
-        bool Filter(bool topdown);
+        bool Filter(bool priority_first);
 
         Vertex GetDAGNextVertex(Vertex cur, Size idx, bool topdown);
 
@@ -125,7 +129,7 @@ namespace daf {
 
         bool BipartiteEdgeSafety(Vertex cur, Vertex cand, Vertex nxt, Vertex nxt_cand);
 
-        bool StructureFilter(int cur, int cand);
+        bool StructureFilter(int cur, int cand, int direction);
 
         bool EgonetFilter(int cur, int cand);
 

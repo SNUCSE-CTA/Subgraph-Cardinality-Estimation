@@ -119,7 +119,7 @@ namespace daf {
     public:
         std::vector<std::vector<Vertex>> adj_list;
 
-        int GetEdgeIndex(Vertex u, Vertex v);
+        int GetEdgeIndex(Vertex u, Vertex v) const;
 
         Vertex opposite(int edge_idx, Vertex from);
 
@@ -165,7 +165,7 @@ namespace daf {
         return edge_exists[u].find(v) != edge_exists[u].end();
     }
 
-    inline int Graph::GetEdgeIndex(Vertex u, Vertex v) {
+    inline int Graph::GetEdgeIndex(Vertex u, Vertex v) const {
         functionCallCounter++;
         auto it = edge_exists[u].find(v);
         if (it == edge_exists[u].end()) return -1;
