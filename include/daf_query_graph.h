@@ -38,6 +38,8 @@ public:
 
     bool ProcessLabeledGraph(const DataGraph &data);
     std::string myname;
+
+
 private:
     Label max_label_;
 };

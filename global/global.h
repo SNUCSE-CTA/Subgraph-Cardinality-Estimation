@@ -12,7 +12,6 @@
 #include <fstream>
 #include <boost/math/distributions.hpp>
 #include <boost/functional/hash.hpp>
-#include <boost/math/distributions.hpp>
 #include "global/log.h"
 
 static int functionCallCounter;
@@ -24,18 +23,14 @@ using VertexPair = std::pair<Vertex, Vertex>;
 static uint64_t counters[1000];
 
 static const int MAX_QUERY_VERTEX = 50, MAX_QUERY_EDGE = 250;
-namespace daf {
-    static std::random_device rd;
-    static std::mt19937 gen(rd());
-}
-
-
+static std::random_device rd;
+static std::mt19937 gen(rd());
 constexpr Size INVALID_SZ = std::numeric_limits<Size>::max();
 constexpr Vertex INVALID_VTX = std::numeric_limits<Vertex>::max();
 constexpr Label INVALID_LB = std::numeric_limits<Label>::max();
 
 namespace std {
-    template <>
+    template<>
     struct hash<VertexPair> {
         auto operator()(const VertexPair &x) const -> size_t {
             std::size_t seed = 17;
@@ -48,20 +43,24 @@ namespace std {
 
 struct UnionFind {
     std::vector<uint32_t> par, sz;
-    UnionFind(uint32_t n = 0){
+
+    UnionFind(uint32_t n = 0) {
         par.resize(n);
         sz.resize(n);
-        for (int i = 0; i < n; i++)
+        for (int i = 0; i < n; i++) {
             par[i] = i, sz[i] = 1;
+        }
     }
+
     uint32_t find(uint32_t x) {
         return x == par[x] ? x : (par[x] = find(par[x]));
     }
+
     bool unite(uint32_t x, uint32_t y) {
         uint32_t u = find(x), v = find(y);
-        if(u == v) return false;
-        if (sz[u]>sz[v]) std::swap(u, v);
-        sz[v]+=sz[u];
+        if (u == v) return false;
+        if (sz[u] > sz[v]) std::swap(u, v);
+        sz[v] += sz[u];
         sz[u] = 0;
         par[u] = par[v];
         return true;
@@ -82,14 +81,15 @@ struct BipartiteMaximumMatching {
         left_len = max_left;
         right_len = max_right;
         used = new bool[max_left];
-        adj = new int*[max_left];
-        adj_index = new int*[max_left];
+        adj = new int *[max_left];
+        adj_index = new int *[max_left];
         for (int i = 0; i < max_left; i++) {
             adj[i] = new int[max_right];
             adj_index[i] = new int[max_right];
         }
         adj_size = new int[max_left];
     }
+
     ~BipartiteMaximumMatching() {
         delete[] left;
         delete[] right;
@@ -100,6 +100,7 @@ struct BipartiteMaximumMatching {
         delete[] adj;
         delete[] adj_size;
     }
+
     void reset(bool reset_edges = true) const {
         std::memset(left, -1, sizeof(int) * left_len);
         std::memset(right, -1, sizeof(int) * right_len);
@@ -108,17 +109,20 @@ struct BipartiteMaximumMatching {
             std::memset(adj_size, 0, sizeof(int) * left_len);
         }
     }
+
     void add_edge(int u, int v) {
         adj_index[u][v] = adj_size[u];
         adj[u][adj_size[u]++] = v;
     }
-    int remove_edge(int u, int v){
-        if(adj_size[u]>1){
-            adj_index[u][adj[u][adj_size[u]-1]] = adj_index[u][v];
-            std::swap(adj[u][adj_size[u]-1], adj[u][adj_index[u][v]]);
+
+    int remove_edge(int u, int v) {
+        if (adj_size[u] > 1) {
+            adj_index[u][adj[u][adj_size[u] - 1]] = adj_index[u][v];
+            std::swap(adj[u][adj_size[u] - 1], adj[u][adj_index[u][v]]);
         }
         return --adj_size[u];
     }
+
     void revert(int *tmp_left) {
         for (int i = 0; i < left_len; i++) {
             if (left[i] == -1) continue;
@@ -130,6 +134,7 @@ struct BipartiteMaximumMatching {
             right[left[i]] = i;
         }
     }
+
     // Time: O( V(V+E) )
     int solve(int ignore = -1) {
         std::memset(left, -1, sizeof(int) * left_len);
@@ -138,8 +143,9 @@ struct BipartiteMaximumMatching {
             if (u == ignore) continue;
             if (left[u] == -1) {
                 std::memset(used, false, sizeof(bool) * left_len);
-                if (dfs(u))
+                if (dfs(u)) {
                     ans++;
+                }
             }
         }
         return ans;
@@ -176,7 +182,7 @@ struct BipartiteMaximumMatching {
 
     void print() {
         for (int i = 0; i < left_len; i++) {
-            printf("%d[%d]\t",left[i],used[i]);
+            printf("%d[%d]\t", left[i], used[i]);
         }
         printf("\n");
     }
@@ -255,13 +261,13 @@ struct BipartiteMaximumMatching {
 //};
 
 
-static std::streampos fileSize( const char* filePath ){
+static std::streampos fileSize(const char *filePath) {
 
     std::streampos fsize = 0;
-    std::ifstream file( filePath, std::ios::binary );
+    std::ifstream file(filePath, std::ios::binary);
 
     fsize = file.tellg();
-    file.seekg( 0, std::ios::end );
+    file.seekg(0, std::ios::end);
     fsize = file.tellg() - fsize;
     file.close();
 

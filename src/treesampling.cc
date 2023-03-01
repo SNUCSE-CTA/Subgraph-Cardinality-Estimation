@@ -1,6 +1,47 @@
+#include <stack>
+#include <queue>
 #include "include/treesampling.h"
 #include "global/global.h"
 #include "global/timer.h"
+
+struct BridgeFinder {
+    int n;
+    std::vector<std::pair<Vertex, Vertex>> bridges;
+    std::vector<std::vector<std::pair<double, int>>> *G;
+    int low[100], order[100];
+    bool vst[100];
+    int t = 0, rt = 0;
+    void dfs(int r, int p) {
+        vst[r] = true;
+        order[r] = t++;
+        low[r] = t;
+        for (auto &[w, nxt] : (*G)[r]) {
+            if (nxt == p) continue;
+            if (!vst[nxt]) {
+                dfs(nxt, r);
+                if (low[nxt] > order[r])
+                    bridges.emplace_back(std::min(r, nxt), std::max(r, nxt));
+                low[r] = std::min(low[nxt], low[r]);
+            }
+            else low[r] = std::min(low[r], order[nxt]);
+        }
+    }
+    std::vector<std::pair<Vertex, Vertex>> FindBridges(std::vector<std::vector<std::pair<double, int>>> *g, int _n) {
+        G = g;
+        n = _n;
+        memset(low, 0, sizeof(low));
+        memset(order, 0, sizeof(order));
+        memset(vst, 0, sizeof(vst));
+        bridges.clear();
+        t = rt = 0;
+        for (int i = 0; i < n; i++)
+            if (!vst[i])
+                dfs(i, -1);
+        sort(bridges.begin(), bridges.end());
+        bridges.erase(unique(bridges.begin(), bridges.end()), bridges.end());
+        return bridges;
+    }
+} BF;
 
 namespace daf {
     inline Size sample(std::discrete_distribution<int> &weighted_distr) {
@@ -46,6 +87,123 @@ namespace daf {
         delete[] num_trees_;
     }
 
+    static double pairwise_corr = 0.0;
+    static int num_pairs = 0;
+
+    std::vector<std::pair<Vertex, Vertex>> BuildTreeByBFS(std::vector<std::pair<double, std::pair<Vertex, Vertex>>> &edges) {
+        std::vector<std::pair<Vertex, Vertex>> T;
+        std::vector<std::vector<std::pair<double, int>>> G(50);
+        int qV = 0;
+        for (auto &[w, e] : edges) {
+            auto &[u, v] = e;
+            G[u].emplace_back(w, v);
+            G[v].emplace_back(w, u);
+            qV = std::max(qV, std::max(u, v)+1);
+        }
+        for (int i = 0; i < qV; i++) {
+            std::sort(G[i].begin(), G[i].end());
+        }
+        std::vector<int> visited(qV, 0);
+        int root = 0;
+        std::queue<int> q;
+        q.push(root);
+        visited[root] = true;
+        while (!q.empty()) {
+            int u = q.front();
+            q.pop();
+            for (auto &[w, v] : G[u]) {
+                if (!visited[v]) {
+//                    fprintf(stderr, "%d %d with weight = %.08lf\n", u, v, w);
+                    T.emplace_back(u, v);
+                    visited[v] = true;
+                    q.push(v);
+                }
+            }
+        }
+        return T;
+    }
+    std::vector<std::pair<Vertex, Vertex>> BuildTreeByDFS(std::vector<std::pair<double, std::pair<Vertex, Vertex>>> &edges) {
+        std::vector<std::pair<Vertex, Vertex>> T;
+        std::vector<std::vector<std::pair<double, int>>> G(50);
+        int qV = 0;
+        for (auto &[w, e] : edges) {
+            auto &[u, v] = e;
+            G[u].emplace_back(w, v);
+            G[v].emplace_back(w, u);
+            qV = std::max(qV, std::max(u, v)+1);
+        }
+        for (int i = 0; i < qV; i++) {
+            std::sort(G[i].begin(), G[i].end());
+        }
+        std::vector<int> visited(qV, 0);
+        int root = 0;
+        std::stack<std::pair<int, int>> stk;
+        stk.emplace(root, 0);
+        visited[root] = true;
+        while (!stk.empty()) {
+            auto [u, s] = stk.top();
+            stk.pop();
+            for (int i = s; i < G[u].size(); i++) {
+                auto [w, v] = G[u][i];
+                if (!visited[v]) {
+                    fprintf(stderr, "%d %d with weight = %.08lf\n", u, v, w);
+                    T.emplace_back(u, v);
+                    visited[v] = true;
+                    stk.emplace(u, i+1);
+                    stk.emplace(v, 0);
+                    break;
+                }
+            }
+        }
+        return T;
+    }
+
+    std::vector<std::pair<Vertex, Vertex>> BuildTreeByPrim(std::vector<std::pair<double, std::pair<Vertex, Vertex>>> &edges) {
+        std::vector<std::pair<Vertex, Vertex>> T;
+        std::vector<std::vector<std::pair<double, int>>> G(50);
+        int qV = 0;
+        for (auto &[w, e] : edges) {
+            auto &[u, v] = e;
+            G[u].emplace_back(w, v);
+            G[v].emplace_back(w, u);
+            qV = std::max(qV, std::max(u, v)+1);
+        }
+        for (int i = 0; i < qV; i++) {
+            std::sort(G[i].begin(), G[i].end());
+        }
+        auto bridges = BF.FindBridges(&G, qV);
+        std::vector<int> deg(qV, 0);
+        UnionFind uf(qV);
+        for (auto &[u, v] : bridges) {
+//            fprintf(stderr, "Add %d %d is bridge\n", u, v);
+            T.emplace_back(u, v);
+            deg[u]++;
+            deg[v]++;
+            uf.unite(u, v);
+        }
+//        int root = 0;
+//        visited[root] = true;
+        while (T.size() + 1 < qV) {
+            double minw = 1e9;
+            std::pair<Vertex, Vertex> me;
+            for (auto &[w, e] : edges) {
+                auto [u, v] = e;
+                if (uf.find(u) == uf.find(v)) continue;
+//                fprintf(stderr, "    Considering %d %d with weight = %.08lf\n", u, v, w);
+                if (minw > w + deg[u] * 1e-7) {
+                    minw = w + deg[u] * 1e-7;
+                    me = e;
+                }
+            }
+//            fprintf(stderr, "Add %d %d with weight = %.08lf\n", me.first, me.second, minw);
+            uf.unite(me.first, me.second);
+            T.push_back(me);
+            deg[me.first]++;
+            deg[me.second]++;
+        }
+        return T;
+    }
+
     void TreeSampling::BuildQueryTree() {
         std::vector<std::pair<double, std::pair<Vertex, Vertex>>> edges;
         for (Size i = 0; i < query_->GetNumVertices(); ++i) {
@@ -66,16 +224,94 @@ namespace daf {
             }
         }
         std::sort(edges.begin(), edges.end());
-        UnionFind uf(query_->GetNumVertices());
-        for (auto e : edges) {
-            auto [u, v] = e.second;
-            if (uf.unite(u, v)) {
-                dag_->AddTreeEdge(u, v);
-            }
+        // Tree building via MST
+//        UnionFind uf(query_->GetNumVertices());
+//        for (auto e : edges) {
+//            auto [u, v] = e.second;
+//
+//            fprintf(stderr, "%d %d with weight = %.08lf\n", u, v, e.first);
+//            if (uf.unite(u, v)) {
+//                dag_->AddTreeEdge(u, v);
+//            }
+//        }
+//        dag_->BuildTree();
+
+//         Tree building via BFS/DFS Tree
+        auto T = BuildTreeByPrim(edges);
+        for (auto e : T) {
+            auto [u, v] = e;
+            dag_->AddTreeEdge(u, v);
         }
         dag_->BuildTree();
+
         double num_tree_homo = ConstructTreeDP();
         fprintf(stderr, "NUM_TREE = %.04lE\n",num_tree_homo);
+        // Compute Pairwise Correlation Statistics
+        /*
+        for (int u = 0; u < query_->GetNumVertices(); u++) {
+            if (query_->adj_list[u].size() <= 1) continue;
+            if (CS->GetCandidateSetSize(u) <= 10) continue;
+            std::vector<std::vector<double>> degree_sequences(query_->adj_list[u].size());
+            std::vector<double> means, stdevs;
+            int uc_idx = 0;
+            for (int u1 : query_->adj_list[u]) {
+                double mean = 0.0;
+                for (int v_idx = 0; v_idx < CS->GetCandidateSetSize(u); v_idx++) {
+                    degree_sequences[uc_idx].push_back(CS->cs_edge_[u][v_idx][u1].size() * 1.0);
+                    mean += degree_sequences[uc_idx].back();
+                }
+                mean /= CS->GetCandidateSetSize(u);
+                double sample_stdev = 0.0;
+                for (double &x : degree_sequences[uc_idx]) {
+                    sample_stdev += (x - mean) * (x - mean);
+                }
+                sample_stdev /= (1.0 * (CS->GetCandidateSetSize(u) - 1));
+                sample_stdev = sqrt(sample_stdev);
+                means.push_back(mean);
+                stdevs.push_back(sample_stdev);
+                if (sample_stdev > 1e-6) {
+                    for (int v_idx = 0; v_idx < CS->GetCandidateSetSize(u); v_idx++) {
+                        degree_sequences[uc_idx][v_idx] = (degree_sequences[uc_idx][v_idx] - mean) / sample_stdev;
+                    }
+                }
+//                fprintf(stderr, "u = %d, Neighbor %d : ", u, u1);
+//                for (int v_idx = 0; v_idx < CS->GetCandidateSetSize(u); v_idx++) {
+//                    fprintf(stderr, " %02lf", degree_sequences[uc_idx][v_idx]);
+//                }
+//                fprintf(stderr, "\n");
+                uc_idx++;
+            }
+            for (int i = 0; i < uc_idx; i++) {
+                for (int j = i + 1; j < uc_idx; j++) {
+                    std::vector<double> &D1 = degree_sequences[i], &D2 = degree_sequences[j];
+                    double c = 0.0;
+                    if (stdevs[i] <= 1e-6 || stdevs[j] <= 1e-6) {
+                        c = 0.0;
+                    }
+                    else {
+                        for (int idx = 0; idx < D1.size(); idx++) {
+                            c += D1[idx] * D2[idx];
+                        }
+                        c /= (D1.size() - 1);
+//                        if (c >= 0.999) {
+//                            for (int v_idx = 0; v_idx < CS->GetCandidateSetSize(u); v_idx++) {
+//                                fprintf(stderr, " %.02lf", D1[v_idx]);
+//                            }
+//                            fprintf(stderr, "\n");
+//                            for (int v_idx = 0; v_idx < CS->GetCandidateSetSize(u); v_idx++) {
+//                                fprintf(stderr, " %.02lf", D2[v_idx]);
+//                            }
+//                            fprintf(stderr, "\n");
+//                        }
+                    }
+                    fprintf(stderr, "u = %d, corr[%d, %d] = %.04lf\n",u,query_->adj_list[u][i],query_->adj_list[u][j],c);
+                    pairwise_corr += abs(c);
+                    num_pairs += 1;
+                }
+            }
+        }
+        fprintf(stderr, "Pairwise absolute pearson correlation = %.04lf among %d pairs\n", pairwise_corr / (1.0 *num_pairs), num_pairs);
+        */
     }
 
     double TreeSampling::ConstructTreeDP() {
@@ -233,6 +469,7 @@ namespace daf {
     }
 
     double TreeSampling::EstimateEmbeddings(Size num_samples) {
+        return 0.0;
         Timer sampletimer_uni, sampletimer_inter;
         sampletimer_uni.Start();
         std::pair<double, int> uniformResult = UniformSamplingEstimate();

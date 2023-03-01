@@ -165,7 +165,8 @@ namespace daf {
             }
             cs_vertex += candidate_set_[i].size();
         }
-        fprintf(stderr, "Initial CS : %d vertex, %d edges\n",cs_vertex, cs_edge);
+//        fprintf(stderr, "Initial CS : %d vertex, %d edges\n",cs_vertex, cs_edge);
+//        printCS();
         return result;
     }
 
@@ -696,9 +697,19 @@ namespace daf {
 
     void CandidateSpace::printCS() {
         for (int i = 0; i < query_->GetNumVertices(); i++) {
-            fprintf(stdout, "Query [%d] : ",i);
+            fprintf(stdout, "Query [%d] : \n",i);
             for (int x : candidate_set_[i]) {
-                fprintf(stdout, "%d ", x);
+                fprintf(stdout, "\t\t%d : ", x);
+                for (int uc : query_->adj_list[i]) {
+                    for (int y : candidate_set_[uc]) {
+                        int de_id = data_->GetEdgeIndex(x, y);
+                        int qe_id = query_->GetEdgeIndex(i, uc);
+                        if (EdgeCandidacy(qe_id, de_id)) {
+                            fprintf(stdout, "(%d, %d) ", uc, y);
+                        }
+                    }
+                }
+                printf("\n");
             }
             fprintf(stdout, "\n");
         }
