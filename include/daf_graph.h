@@ -166,7 +166,6 @@ namespace daf {
     }
 
     inline int Graph::GetEdgeIndex(Vertex u, Vertex v) const {
-        functionCallCounter++;
         auto it = edge_exists[u].find(v);
         if (it == edge_exists[u].end()) return -1;
         return (*it).second;

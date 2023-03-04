@@ -435,6 +435,15 @@ namespace daf {
     }
 
     bool CandidateSpace::EdgeBipartiteSafety(Vertex cur, Vertex cand) {
+        if (query_->all_incident_edges_[cur].size() == 1) {
+            int q_edge_id = query_->all_incident_edges_[cur][0];
+            for (int edge_id : data_->all_incident_edges_[cand]) {
+                if (BitsetEdgeCS[q_edge_id][edge_id])
+                    return true;
+            }
+            return false;
+        }
+        std::vector<std::pair<int, int>> edge_pairs;
         int ii = 0, jj = 0;
         BPSolver.reset();
         for (int query_edge_index : query_->all_incident_edges_[cur]) {
@@ -443,54 +452,90 @@ namespace daf {
             for (int edge_id : data_->all_incident_edges_[cand]) {
                 Vertex vc = data_->opposite(edge_id, cand);
                 if (data_->GetDegree(vc) < query_->GetDegree(uc)) break;
-                if (BitsetEdgeCS[query_edge_index][edge_id])
+                if (BitsetEdgeCS[query_edge_index][edge_id]) {
                     BPSolver.add_edge(ii, jj);
+                    edge_pairs.emplace_back(ii, jj);
+                }
                 jj++;
             }
             ii++;
         }
-        ii = 0;
-        for (int query_edge_idx : query_->all_incident_edges_[cur]) {
-            int nxt = query_->to_[query_edge_idx];
-            bool found = false;
-            BPSolver.reset(false);
-            if (BPSolver.solve(ii) < query_->adj_list[cur].size() - 1) {
-                return false;
+        bool b = BPSolver.FindUnmatchableEdges(query_->all_incident_edges_[cur].size());
+        if (!b) return false;
+        for (auto &[i, j] : edge_pairs) {
+            if (!BPSolver.matchable[i][j]) {
+//                printf("Edge (%d, %d) is unmatchable\n", i, j);
+                int left_unmatch = query_->all_incident_edges_[cur][i];
+                int right_unmatch = data_->all_incident_edges_[cand][j];
+                BitsetEdgeCS[left_unmatch][right_unmatch] = false;
+                BitsetEdgeCS[query_->opposite_edge[left_unmatch]][data_->opposite_edge[right_unmatch]] = false;
             }
-            jj = -1;
-            for (int data_edge_idx : data_->all_incident_edges_[cand]) {
-                Vertex nxt_cand = data_->to_[data_edge_idx];
-                jj++;
-                if (data_->GetDegree(nxt_cand) < query_->GetDegree(nxt)) break;
-                if (!BitsetEdgeCS[query_edge_idx][data_edge_idx]) {
-                    continue;
-                }
-                if (BPSolver.right[jj] == -1) {
-                    found = true;
-                    continue;
-                }
-                std::memset(BPSolver.used, false, sizeof(bool) * query_->adj_list[cur].size());
-                BPSolver.used[ii] = true;
-                if (BPSolver.single_dfs(BPSolver.right[jj])) {
-                    found = true;
-                }
-                else {
-                    num_cur_edges[cur][nxt]--;
-                    num_cur_edges[nxt][cur]--;
-                    BitsetEdgeCS[query_edge_idx][data_edge_idx] = false;
-                    BitsetEdgeCS[query_->opposite_edge[query_edge_idx]][data_->opposite_edge[data_edge_idx]] = false;
-                    if(!BPSolver.remove_edge(ii, jj)){
-                        return false;
-                    }
-                }
-            }
-            if (!found) {
-                return false;
-            }
-            ii++;
         }
+//        printf("\n");
         return true;
     }
+
+
+//    bool CandidateSpace::EdgeBipartiteSafety(Vertex cur, Vertex cand) {
+//        int ii = 0, jj = 0;
+//        BPSolver.reset();
+//        for (int query_edge_index : query_->all_incident_edges_[cur]) {
+//            Vertex uc = query_->opposite(query_edge_index, cur);
+//            jj = 0;
+//            for (int edge_id : data_->all_incident_edges_[cand]) {
+//                Vertex vc = data_->opposite(edge_id, cand);
+//                if (data_->GetDegree(vc) < query_->GetDegree(uc)) break;
+//                if (BitsetEdgeCS[query_edge_index][edge_id])
+//                    BPSolver.add_edge(ii, jj);
+//                jj++;
+//            }
+//            ii++;
+//        }
+////        if (BPSolver.solve(ii) < query_->adj_list[cur].size()) return false;
+////        BPSolver.print();
+//        ii = 0;
+//        for (int query_edge_idx : query_->all_incident_edges_[cur]) {
+//            int nxt = query_->to_[query_edge_idx];
+//            bool found = false;
+//            BPSolver.reset(false);
+//            if (BPSolver.solve(ii) < query_->adj_list[cur].size() - 1) {
+//                return false;
+//            }
+//            jj = -1;
+//            for (int data_edge_idx : data_->all_incident_edges_[cand]) {
+//                Vertex nxt_cand = data_->to_[data_edge_idx];
+//                jj++;
+//                if (data_->GetDegree(nxt_cand) < query_->GetDegree(nxt)) break;
+//                if (!BitsetEdgeCS[query_edge_idx][data_edge_idx]) {
+//                    continue;
+//                }
+//                if (BPSolver.right[jj] == -1) {
+//                    found = true;
+//                    continue;
+//                }
+//                std::memset(BPSolver.used, false, sizeof(bool) * query_->adj_list[cur].size());
+//                BPSolver.used[ii] = true;
+//                if (BPSolver.single_dfs(BPSolver.right[jj])) {
+//                    found = true;
+//                }
+//                else {
+////                    printf("Edge (%d, %d) is unmatchable\n", ii, jj);
+//                    num_cur_edges[cur][nxt]--;
+//                    num_cur_edges[nxt][cur]--;
+//                    BitsetEdgeCS[query_edge_idx][data_edge_idx] = false;
+//                    BitsetEdgeCS[query_->opposite_edge[query_edge_idx]][data_->opposite_edge[data_edge_idx]] = false;
+//                    if(!BPSolver.remove_edge(ii, jj)){
+//                        return false;
+//                    }
+//                }
+//            }
+//            if (!found) {
+//                return false;
+//            }
+//            ii++;
+//        }
+//        return true;
+//    }
     bool CandidateSpace::EgonetFilter(int cur, int cand) {
         switch (opt.egonet_filter) {
             case NEIGHBOR_SAFETY:
@@ -656,7 +701,9 @@ namespace daf {
                         Vertex v = data_->opposite(data_edge_idx, v_adj);
                         if (data_->GetDegree(v) < u_degree) break;
                         if (!BitsetEdgeCS[query_edge_idx][data_edge_idx]) continue;
+                        if (!BitsetCS[u][v]) continue;
                         CandidateEdges++;
+//                        printf("CS_EDGE_[%d][%d][%d].push_back(%d)\n",u,CandidateIndex[v],u_adj,v_adj_idx);
                         cs_edge_[u][CandidateIndex[v]][u_adj].emplace_back(v_adj_idx);
                     }
                 }
@@ -667,6 +714,7 @@ namespace daf {
         csbuild_timer.Stop();
 //        printCS();
 
+        fprintf(stderr, "FunctionCallCounter = %d\n",functionCallCounter);
         fprintf(stdout, "CS build time : %.02lf ms\n",csbuild_timer.GetTime());
         fprintf(stderr, "CS-SZ : %u %u\n", CandidateSpaceSize, CandidateEdges);
         fprintf(stdout, "#CandidateSetSize : %u\n", CandidateSpaceSize);
