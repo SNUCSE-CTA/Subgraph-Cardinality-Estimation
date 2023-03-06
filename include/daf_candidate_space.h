@@ -34,9 +34,10 @@ namespace daf {
         STRUCTURE_FILTER structure_filter = FOURCYCLE_SAFETY;
         EGONET_FILTER egonet_filter = EDGE_BIPARTITE_SAFETY;
         REFINEMENT_ORDER refinement_order = PRIORITY_FIRST;
+        double cutoff = 0.05;
         void print() {
-            fprintf(stderr, "Filtering Level : Struct[%d] Egonet[%d]\n", structure_filter, egonet_filter);
-            fprintf(stdout, "Filtering Level : Struct[%d] Egonet[%d]\n", structure_filter, egonet_filter);
+            fprintf(stderr, "Filtering Level : Struct[%d] Egonet[%d], cutoff %.02lf\n", structure_filter, egonet_filter, cutoff);
+            fprintf(stdout, "Filtering Level : Struct[%d] Egonet[%d], cutoff %.02lf\n", structure_filter, egonet_filter, cutoff);
         }
     };
 

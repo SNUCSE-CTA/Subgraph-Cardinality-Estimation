@@ -16,19 +16,19 @@
 using namespace daf;
 
 std::string dataset, ans_file_name, data_root;
-//std::string dataset = "hprd", ans_file_name = dataset+"_ans", data_root = "../../dataset/";
+//std::string dataset = "aids", ans_file_name = dataset+"_ans", data_root = "../../dataset/";
 std::string data_name = "../../dataset/wordnet/data_graph/wordnet.graph";
 std::string query_name = "../../dataset/wordnet/query_graph/query_dense_4_1.graph";
 //std::string data_name = "../../dataset/yeast/data_graph/yeast.graph";
 //std::string query_name = "../../dataset/yeast/query_graph/query_dense_24_161.graph";
 std::deque<std::string> query_names = {
         query_name,
-//        "../../dataset/wordnet/query_graph/query_dense_16_13.graph",
-//        "../../dataset/wordnet/query_graph/query_dense_16_14.graph",
-//        "../../dataset/wordnet/query_graph/query_dense_16_15.graph",
-//        "../../dataset/wordnet/query_graph/query_dense_16_16.graph",
-//        "../../dataset/wordnet/query_graph/query_dense_16_17.graph",
-//        "../../dataset/wordnet/query_graph/query_dense_16_18.graph"
+        "../../dataset/wordnet/query_graph/query_dense_16_13.graph",
+        "../../dataset/wordnet/query_graph/query_dense_16_14.graph",
+        "../../dataset/wordnet/query_graph/query_dense_16_15.graph",
+        "../../dataset/wordnet/query_graph/query_dense_16_16.graph",
+        "../../dataset/wordnet/query_graph/query_dense_16_17.graph",
+        "../../dataset/wordnet/query_graph/query_dense_16_18.graph"
 };
 
 int num_samples = 1000000;
@@ -60,13 +60,7 @@ void estimate(DataGraph &data, QueryGraph &query) {
     total_timer.Start();
     TSSolver->RegisterQuery(&query, &dag);
     total_timer.Stop();
-    for (auto u = 0; u < query.GetNumVertices(); ++u) {
-        if (TSSolver->CS->GetCandidateSetSize(u) == 0) {
-            std::cout << "Total time: " << total_timer.GetTime() << " ms\n";
-//            exit(1);
-            return;
-        }
-    }
+    std::cout << "Filter time: " << total_timer.GetTime() << " ms\n";
     sample_timer.Start();
     double est = TSSolver->EstimateEmbeddings(num_samples);
     sample_timer.Stop();
@@ -125,8 +119,15 @@ void read_filter_option(const std::string& opt, const std::string &filter) {
             FILTERING_OPTION.structure_filter = daf::TRIANGLE_SAFETY;
         else if (filter == "TRIANGLE_BIPARTITE_SAFETY")
             FILTERING_OPTION.structure_filter = daf::TRIANGLE_BIPARTITE_SAFETY;
-        else
+        else if (filter == "FOURCYCLE_SAFETY")
             FILTERING_OPTION.structure_filter = daf::FOURCYCLE_SAFETY;
+        else if (filter == "FOURCYCLE_SAFETY_DAGDP") {
+            FILTERING_OPTION.refinement_order = daf::DAG_DP;
+            FILTERING_OPTION.structure_filter = daf::FOURCYCLE_SAFETY;
+        }
+    }
+    else if (opt.substr(2) == "CUTOFF") {
+        FILTERING_OPTION.cutoff = atof(opt.c_str());
     }
 }
 int main(int argc, char *argv[]) {

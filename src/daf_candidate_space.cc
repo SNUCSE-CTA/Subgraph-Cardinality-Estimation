@@ -98,6 +98,7 @@ namespace daf {
                         if (num_visit_cs_[cand] < num_parent) continue;
                         if (data_->GetDegree(cand) < query_->GetDegree(cur)) break;
                         if (data_->GetCoreNum(cand) < query_->GetCoreNum(cur)) continue;
+                        if (data_->GetELabel(data_edge_idx) != query_->GetELabel(query_edge_idx)) continue;
                         for (int l = 0; l < data_->GetNumLabels(); l++) {
                             if (data_->incident_edges_[cand][l].size() < query_->incident_edges_[cur][l].size()) {
                                 goto nxt_candidate;
@@ -620,7 +621,7 @@ namespace daf {
                 double removed_edge_ratio = 1 - (num_cur_edges[cur][nxt] * 1.0 / num_edges[cur][nxt]);
 //                priority[nxt] = 1 - (1 - removed_edge_ratio) * (1 - priority[nxt]);
                 priority[nxt] = 1 - (1 - out_prob) * (1 - priority[nxt]);
-                if (priority[nxt] < 0.05) continue;
+                if (priority[nxt] < opt.cutoff) continue;
                 local_stage[nxt] = current_stage;
 //                fprintf(stderr, "    Cur=[%d] pushes Nxt=[%d] with priority %lf\n",cur,nxt,priority[nxt]);
                 candidate_queue.push({priority[nxt], current_stage, nxt});

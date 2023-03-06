@@ -85,10 +85,12 @@ struct BipartiteMaximumMatching {
     int **upper_graph, *upper_graph_size;
 
     // Finding Strongly Connected Components
-    std::stack<int> S;
-    int dfsn[101], scch[101], scc_idx[101], ord, found_scc;
+    int *Q, *S;
+    int qright = 0, qleft = 0;
+    int stkright = 0;
+    int dfsn[MAX_QUERY_VERTEX], scch[MAX_QUERY_VERTEX], scc_idx[MAX_QUERY_VERTEX], ord, found_scc;
     int scc_dfs(int v) {
-        S.push(v);
+        S[stkright++] = v;
         int ret=dfsn[v]=++ord;
         for(int i = 0; i < upper_graph_size[v]; i++){
             int n = upper_graph[v][i];
@@ -98,7 +100,7 @@ struct BipartiteMaximumMatching {
         if(ret==dfsn[v]){
             int u;
             do {
-                u=S.top();S.pop();
+                u=S[--stkright];
                 scch[u]=1;
                 scc_idx[u] = found_scc;
             } while(u!=v);
@@ -107,7 +109,6 @@ struct BipartiteMaximumMatching {
         return ret;
     }
     bool FindUnmatchableEdges(int required) {
-        functionCallCounter++;
         ord = 0;
         found_scc = 0;
         memset(dfsn, 0, sizeof (dfsn));
@@ -116,7 +117,9 @@ struct BipartiteMaximumMatching {
         int num_matched_ans = solve();
         if (num_matched_ans != required) return false;
         for (int i = 0; i < num_matched_ans; i++) {
-            std::memset(matchable[i], 0, sizeof(bool) * right_len);
+            for (int j = 0; j < adj_size[i]; j++) {
+                matchable[i][adj[i][j]] = false;
+            }
         }
         for (int i = 0; i < num_matched_ans; i++) {
             matchable[i][left[i]] = true;
@@ -158,19 +161,17 @@ struct BipartiteMaximumMatching {
         // SCC (Tarjan's algorithm)
         // BFS traversal
         std::memset(bfs_visited, 0, sizeof(bool) * right_len);
-        std::queue<int> q;
         for (int i = num_matched_ans; i < num_rights; i++) {
-            q.push(i);
+            Q[qright++] = i;
             bfs_visited[i] = true;
         }
-        while (!q.empty()) {
-            int u = q.front();
-            q.pop();
+        while (qright != qleft) {
+            int u = Q[qleft++];
             for (int j = 0; j < lower_graph_size[u]; j++) {
                 int v = lower_graph[u][j];
                 matchable[v][inverse_right_order[u]] = true;
                 if (!bfs_visited[v]) {
-                    q.push(v);
+                    Q[qright++] = v;
                     bfs_visited[v] = true;
                 }
             }
@@ -179,7 +180,10 @@ struct BipartiteMaximumMatching {
     }
 
     void global_initialize(int max_left, int max_right) {
-        fprintf(stderr, "BPSolver init to %d by %d\n",max_left,max_right);
+//        fprintf(stderr, "BPSolver init to %d by %d\n",max_left,max_right);
+        Q = new int[max_right];
+        S = new int[max_right];
+        qleft = qright = stkright = 0;
         left = new int[max_left];
         right = new int[max_right];
         left_len = max_left;
@@ -230,7 +234,7 @@ struct BipartiteMaximumMatching {
         delete[] bfs_visited;
     }
 
-    void reset(bool reset_edges = true) const {
+    void reset(bool reset_edges = true) {
         std::memset(left, -1, sizeof(int) * left_len);
         std::memset(right, -1, sizeof(int) * right_len);
         std::memset(used, false, sizeof(bool) * left_len);
@@ -241,6 +245,7 @@ struct BipartiteMaximumMatching {
         std::memset(upper_graph_size, 0, sizeof(int) * left_len);
         std::memset(right_order, -1, sizeof(int) * right_len);
         std::memset(inverse_right_order, -1, sizeof(int) * right_len);
+        qleft = qright = stkright = 0;
     }
 
     void add_edge(int u, int v) {

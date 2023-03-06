@@ -171,16 +171,16 @@ namespace daf {
         for (int i = 0; i < qV; i++) {
             std::sort(G[i].begin(), G[i].end());
         }
-        auto bridges = BF.FindBridges(&G, qV);
+//        auto bridges = BF.FindBridges(&G, qV);
         std::vector<int> deg(qV, 0);
         UnionFind uf(qV);
-        for (auto &[u, v] : bridges) {
-//            fprintf(stderr, "Add %d %d is bridge\n", u, v);
-            T.emplace_back(u, v);
-            deg[u]++;
-            deg[v]++;
-            uf.unite(u, v);
-        }
+//        for (auto &[u, v] : bridges) {
+////            fprintf(stderr, "Add %d %d is bridge\n", u, v);
+//            T.emplace_back(u, v);
+//            deg[u]++;
+//            deg[v]++;
+//            uf.unite(u, v);
+//        }
 //        int root = 0;
 //        visited[root] = true;
         while (T.size() + 1 < qV) {
@@ -469,7 +469,7 @@ namespace daf {
     }
 
     double TreeSampling::EstimateEmbeddings(Size num_samples) {
-        return 0.0;
+//        return 0.0;
         Timer sampletimer_uni, sampletimer_inter;
         sampletimer_uni.Start();
         std::pair<double, int> uniformResult = UniformSamplingEstimate();
