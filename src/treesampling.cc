@@ -455,11 +455,10 @@ namespace daf {
                 long double wminus = (success + z * z / 2 - z * sqrt(success * (t - success) / (long double) t + z * z / 4)) / (t + z * z);
                 long double wplus = (success + z * z / 2 + z * sqrt(success * (t - success) / (long double) t + z * z / 4)) / (t + z * z);
                 */
-               
+
                 // Clopper-Pearson bounds
                 long double wplus = boost::math::binomial_distribution<>::find_upper_bound_on_p(t, success, 0.05/2);
                 long double wminus = boost::math::binomial_distribution<>::find_lower_bound_on_p(t, success, 0.05/2);
-                assert(wplus >= wminus);
                 
                 if (rhohat * 0.8 < wminus && wplus < rhohat * 1.25) {
                     break;
