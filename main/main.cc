@@ -15,7 +15,7 @@
 
 using namespace daf;
 
-std::string dataset, ans_file_name, data_root;
+std::string dataset, ans_file_name, data_root = "../../dataset/";
 //std::string dataset = "aids", ans_file_name = dataset+"_ans", data_root = "../../dataset/";
 std::string data_name = "../../dataset/wordnet/data_graph/wordnet.graph";
 std::string query_name = "../../dataset/wordnet/query_graph/query_dense_4_1.graph";
@@ -38,7 +38,7 @@ std::unordered_map<std::string, double> true_cnt;
 
 
 TreeSampling *TSSolver;
-FilterOption FILTERING_OPTION;
+Option OPTION;
 
 void estimate(DataGraph &data, QueryGraph &query) {
     GlobalTimer.Start();
@@ -81,7 +81,21 @@ void estimate(DataGraph &data, QueryGraph &query) {
     std::cerr << std::fixed << "Cumul time: " << cumulative_time_/1000 << " sec\t" << cumulative_time_/60000 << " min\n";
 }
 
-
+void loadAnswers(std::string dataset) {
+    ans_file_name = data_root+dataset+"/"+dataset+"_ans.txt";
+    std::cerr << ans_file_name << std::endl;
+    std::ifstream ans_in(ans_file_name);
+    std::cerr << "Reading ans file for " << dataset << " " << fileSize(ans_file_name.c_str()) << std::endl;
+    while (!ans_in.eof()) {
+        std::string name, t, c;
+        ans_in >> name >> t >> c;
+        if (name.empty() || t.empty() || c.empty()) continue;
+        name = data_root+dataset+"/query_graph/"+name;
+        std::string::size_type sz = 0;
+        true_cnt[name] = atoll(c.c_str()) * 1.0;
+//        std::cerr << "Ans " << name << " " << true_cnt[name] << std::endl;
+    }
+}
 void loadFullDataset() {
     std::cerr << "Loading dataset " << dataset << std::endl;
     data_name = data_root+dataset+"/data_graph/"+dataset+".graph";
@@ -106,28 +120,28 @@ void loadFullDataset() {
 void read_filter_option(const std::string& opt, const std::string &filter) {
     if (opt.substr(2) == "EGONET") {
         if (filter == "NEIGHBOR_SAFETY")
-            FILTERING_OPTION.egonet_filter = daf::NEIGHBOR_SAFETY;
+            OPTION.egonet_filter = daf::NEIGHBOR_SAFETY;
         else if (filter == "NEIGHBOR_BIPARTITE_SAFETY")
-            FILTERING_OPTION.egonet_filter = daf::NEIGHBOR_BIPARTITE_SAFETY;
+            OPTION.egonet_filter = daf::NEIGHBOR_BIPARTITE_SAFETY;
         else
-            FILTERING_OPTION.egonet_filter = daf::EDGE_BIPARTITE_SAFETY;
+            OPTION.egonet_filter = daf::EDGE_BIPARTITE_SAFETY;
     }
     else if (opt.substr(2) == "STRUCTURE") {
         if (filter == "NONE")
-            FILTERING_OPTION.structure_filter = daf::NO_STRUCTURE_FILTER;
+            OPTION.structure_filter = daf::NO_STRUCTURE_FILTER;
         else if (filter == "TRIANGLE_SAFETY")
-            FILTERING_OPTION.structure_filter = daf::TRIANGLE_SAFETY;
+            OPTION.structure_filter = daf::TRIANGLE_SAFETY;
         else if (filter == "TRIANGLE_BIPARTITE_SAFETY")
-            FILTERING_OPTION.structure_filter = daf::TRIANGLE_BIPARTITE_SAFETY;
+            OPTION.structure_filter = daf::TRIANGLE_BIPARTITE_SAFETY;
         else if (filter == "FOURCYCLE_SAFETY")
-            FILTERING_OPTION.structure_filter = daf::FOURCYCLE_SAFETY;
+            OPTION.structure_filter = daf::FOURCYCLE_SAFETY;
         else if (filter == "FOURCYCLE_SAFETY_DAGDP") {
-            FILTERING_OPTION.refinement_order = daf::DAG_DP;
-            FILTERING_OPTION.structure_filter = daf::FOURCYCLE_SAFETY;
+            OPTION.refinement_order = daf::DAG_DP;
+            OPTION.structure_filter = daf::FOURCYCLE_SAFETY;
         }
     }
     else if (opt.substr(2) == "CUTOFF") {
-        FILTERING_OPTION.cutoff = atof(opt.c_str());
+        OPTION.cutoff = atof(opt.c_str());
     }
 }
 int main(int argc, char *argv[]) {
@@ -160,15 +174,16 @@ int main(int argc, char *argv[]) {
     if (dataset.length() > 0) {
         loadFullDataset();
     }
+    loadAnswers("wordnet");
 
     std::cout << "Loading data graph..." << std::endl;
     DataGraph data(data_name);
     data.LoadAndProcessGraph();
 
-//    FILTERING_OPTION.refinement_order = DAG_DP;
-//    FILTERING_OPTION.structure_filter = daf::NO_STRUCTURE_FILTER;
-//    FILTERING_OPTION.egonet_filter = daf::NEIGHBOR_BIPARTITE_SAFETY;
-    TSSolver = new TreeSampling(&data, FILTERING_OPTION);
+//    OPTION.refinement_order = DAG_DP;
+//    OPTION.structure_filter = daf::NO_STRUCTURE_FILTER;
+//    OPTION.egonet_filter = daf::NEIGHBOR_BIPARTITE_SAFETY;
+    TSSolver = new TreeSampling(&data, OPTION);
 
     for (std::string &qname : query_names) {
         q_cnt++;

@@ -11,9 +11,10 @@
 #include "include/daf_candidate_space.h"
 #include "include/RWI.h"
 namespace daf {
-class TreeSampling {
+
+    class TreeSampling {
 public:
-    TreeSampling(DataGraph *data, FilterOption opt);
+    TreeSampling(DataGraph *data, Option opt);
     ~TreeSampling();
     TreeSampling &operator=(const TreeSampling &) = delete;
     TreeSampling(const TreeSampling &) = delete;

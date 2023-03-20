@@ -15,32 +15,6 @@
 #include "include/daf_query_graph.h"
 
 namespace daf {
-    enum STRUCTURE_FILTER {
-        NO_STRUCTURE_FILTER,
-        TRIANGLE_SAFETY,
-        TRIANGLE_BIPARTITE_SAFETY,
-        FOURCYCLE_SAFETY
-    };
-    enum EGONET_FILTER {
-        NEIGHBOR_SAFETY,
-        NEIGHBOR_BIPARTITE_SAFETY,
-        EDGE_BIPARTITE_SAFETY
-    };
-    enum REFINEMENT_ORDER {
-        DAG_DP,
-        PRIORITY_FIRST
-    };
-    struct FilterOption {
-        STRUCTURE_FILTER structure_filter = FOURCYCLE_SAFETY;
-        EGONET_FILTER egonet_filter = EDGE_BIPARTITE_SAFETY;
-        REFINEMENT_ORDER refinement_order = PRIORITY_FIRST;
-        double cutoff = 0.05;
-        void print() {
-            fprintf(stderr, "Filtering Level : Struct[%d] Egonet[%d], cutoff %.02lf\n", structure_filter, egonet_filter, cutoff);
-            fprintf(stdout, "Filtering Level : Struct[%d] Egonet[%d], cutoff %.02lf\n", structure_filter, egonet_filter, cutoff);
-        }
-    };
-
 
     struct variable {
         double priority;
@@ -55,7 +29,7 @@ namespace daf {
 
     class CandidateSpace {
     public:
-        CandidateSpace(DataGraph *data, FilterOption filter_option);
+        CandidateSpace(DataGraph *data, Option filter_option);
 
         ~CandidateSpace();
 
@@ -69,7 +43,7 @@ namespace daf {
 
         std::vector<std::vector<std::vector<std::vector<int>>>> cs_edge_;
 
-        FilterOption opt;
+        Option opt;
         void printCS();
         bool BuildCS(QueryGraph *query, DAG *dag);
         std::vector<std::vector <Vertex>> candidate_set_;

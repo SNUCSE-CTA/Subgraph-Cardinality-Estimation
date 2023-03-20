@@ -15,7 +15,6 @@
 #include <boost/math/distributions.hpp>
 #include <boost/functional/hash.hpp>
 #include "global/log.h"
-
 static int functionCallCounter;
 using Size = int32_t;
 using Vertex = int32_t;
@@ -26,7 +25,7 @@ static uint64_t counters[1000];
 
 static const int MAX_QUERY_VERTEX = 50, MAX_QUERY_EDGE = 250;
 static std::random_device rd;
-static std::mt19937 gen(rd());
+static std::mt19937 gen(0);
 constexpr Size INVALID_SZ = std::numeric_limits<Size>::max();
 constexpr Vertex INVALID_VTX = std::numeric_limits<Vertex>::max();
 constexpr Label INVALID_LB = std::numeric_limits<Label>::max();
@@ -420,4 +419,44 @@ static std::streampos fileSize(const char *filePath) {
     return fsize;
 }
 
+
+
+namespace daf {
+    enum STRUCTURE_FILTER {
+        NO_STRUCTURE_FILTER,
+        TRIANGLE_SAFETY,
+        TRIANGLE_BIPARTITE_SAFETY,
+        FOURCYCLE_SAFETY
+    };
+    static std::string structure_filter_to_string[4] = {"NO_STRUCTURE_FILTER", "TRIANGLE_SAFETY", "TRIANGLE_BIPARTITE_SAFETY", "FOURCYCLE_SAFETY"};
+    enum EGONET_FILTER {
+        NEIGHBOR_SAFETY,
+        NEIGHBOR_BIPARTITE_SAFETY,
+        EDGE_BIPARTITE_SAFETY
+    };
+    static std::string edge_filter_to_string[3] = {"NEIGHBOR_SAFETY", "NEIGHBOR_BIPARTITE_SAFETY", "EDGE_BIPARTITE_SAFETY"};
+    enum REFINEMENT_ORDER {
+        DAG_DP,
+        PRIORITY_FIRST
+    };
+    static std::string refinement_order_to_string[2] = {"DAG_DP", "PRIORITY_FIRST"};
+
+    enum SAMPLING_ORDER {
+        OPENNEIGHBORS,
+        APPROXEXTCAND
+    };
+    static std::string sampling_order_to_string[2] = {"OPENNEIGHBORS", "APPROXEXTCAND"};
+
+    struct Option {
+        STRUCTURE_FILTER structure_filter = FOURCYCLE_SAFETY;
+        EGONET_FILTER egonet_filter = EDGE_BIPARTITE_SAFETY;
+        REFINEMENT_ORDER refinement_order = PRIORITY_FIRST;
+        SAMPLING_ORDER sampling_order = OPENNEIGHBORS;
+        double cutoff = 0.05;
+        void print() {
+            fprintf(stderr, "Filtering Level : Struct[%d] Egonet[%d], cutoff %.02lf\n", structure_filter, egonet_filter, cutoff);
+            fprintf(stdout, "Filtering Level : Struct[%d] Egonet[%d], cutoff %.02lf\n", structure_filter, egonet_filter, cutoff);
+        }
+    };
+}
 #endif  // GLOBAL_GLOBAL_H_

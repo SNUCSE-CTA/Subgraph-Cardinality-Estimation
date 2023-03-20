@@ -9,7 +9,7 @@ namespace daf {
     BipartiteMaximumMatching BPSolver, BPTSolver;
     int num_edges[MAX_QUERY_VERTEX][MAX_QUERY_VERTEX], num_cur_edges[MAX_QUERY_VERTEX][MAX_QUERY_VERTEX];;
 
-    CandidateSpace::CandidateSpace(DataGraph *data, FilterOption filter_option) {
+    CandidateSpace::CandidateSpace(DataGraph *data, Option filter_option) {
         data_ = data;
         BitsetCS = new bool*[MAX_QUERY_VERTEX];
         for (int i = 0; i < MAX_QUERY_VERTEX; i++) {

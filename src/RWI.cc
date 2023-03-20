@@ -4,13 +4,11 @@
 using namespace daf;
 namespace daf {
 
-    std::vector<int> population;
-
-    std::map<int, int> mp;
     int rwi_sample_count = 1000000;
-    int local_cand_cnt = 0, local_cand_sum = 0;
+    long long local_cand_cnt = 0, local_cand_sum = 0;
 
     void RWI::multivector_intersection(int index, bool debug = false) {
+        if (local_candidate_size[index] > 0) return;
         int num_vectors = iterators.size();
         if (num_vectors == 1) {
             while (iterators[0].first != iterators[0].second) {
@@ -42,25 +40,69 @@ namespace daf {
         }
     }
 
-
-    std::pair<double, int> RWI::SampleDAGVertex(std::vector<int> &dag_sample, int vertex_id, int num_samples) {
-        // Vertex with minimum number of (1-edge) candidate
-        std::fill(num_seen.begin(), num_seen.end(), 0);
+    int RWI::ChooseExtendableVertex(int vertex_id) {
         int u = -1;
-        for (int i = 0; i < query_->GetNumVertices(); i++) {
-            if (dag_sample[i] != -1) continue;
-            int nbr_cnt = 1e9;
-            for (int q_nbr : query_->adj_list[i]) {
-                if (dag_sample[q_nbr] != -1) {
-                    num_seen[i]++;
-                    int num_nbr = CS->cs_edge_[q_nbr][dag_sample[q_nbr]][i].size();
-                    if (num_nbr < nbr_cnt) {
-                        nbr_cnt = num_nbr;
+        if (opt.sampling_order == OPENNEIGHBORS) {
+            int max_open_neighbors = 0;
+            int min_nbr_cnt = 1e9;
+            for (int i = 0; i < query_->GetNumVertices(); i++) {
+                if (dag_sample[i] != -1) continue;
+                int nbr_cnt = 1e9;
+                int open_neighbors = 0;
+                for (int q_nbr : query_->adj_list[i]) {
+                    if (dag_sample[q_nbr] != -1) {
+                        open_neighbors++;
+                        int num_nbr = CS->cs_edge_[q_nbr][dag_sample[q_nbr]][i].size();
+                        if (num_nbr < nbr_cnt) {
+                            nbr_cnt = num_nbr;
+                        }
+                    }
+                }
+                if (open_neighbors > max_open_neighbors) {
+                    max_open_neighbors = open_neighbors;
+                    min_nbr_cnt = nbr_cnt;
+                    u = i;
+                }
+                else if (open_neighbors == max_open_neighbors) {
+                    if (nbr_cnt < min_nbr_cnt) {
+                        min_nbr_cnt = nbr_cnt;
+                        u = i;
                     }
                 }
             }
         }
-        u = std::max_element(num_seen.begin(), num_seen.end()) - num_seen.begin();
+        else if (opt.sampling_order == APPROXEXTCAND) {
+            // Vertex with minimum number of (1-edge) candidate
+            double min_value = 1e9;
+            for (int i = 0; i < query_->GetNumVertices(); i++) {
+                if (dag_sample[i] != -1) continue;
+                double nbr_cnt = 1e9;
+                int nbr_seen = 0;
+                for (int q_nbr : query_->adj_list[i]) {
+                    if (dag_sample[q_nbr] != -1) {
+                        nbr_seen += 1;
+                        int num_nbr = CS->cs_edge_[q_nbr][dag_sample[q_nbr]][i].size();
+                        if (num_nbr < nbr_cnt) {
+                            nbr_cnt = num_nbr;
+                        }
+                    }
+                }
+                if (nbr_seen == query_->adj_list[i].size()) {
+                    if (local_candidate_size[i] == 0) {
+                        BuildExtendableCandidates(i);
+                    }
+                    nbr_cnt = local_candidate_size[i];
+                }
+                if (nbr_cnt < min_value) {
+                    min_value = nbr_cnt;
+                    u = i;
+                }
+            }
+        }
+        return u;
+    }
+
+    void RWI::BuildExtendableCandidates(int u) {
         local_candidate_size[u] = 0;
         iterators.clear();
         for (int q_nbr : query_->adj_list[u]) {
@@ -70,8 +112,15 @@ namespace daf {
         std::sort(iterators.begin(), iterators.end(), [](auto &a, auto &b) -> bool {
             return a.second - a.first < b.second - b.first;
         });
-//        std::cerr << "INTERSECTION" << std::endl;
         multivector_intersection(u);
+    }
+    std::pair<double, int> RWI::SampleDAGVertex(int vertex_id, int num_samples) {
+        int u = ChooseExtendableVertex(vertex_id);
+
+        BuildExtendableCandidates(u);
+        if (local_candidate_size[u] == 0) {
+            return {0, 1};
+        }
         for (int i = 0; i < query_->GetNumVertices(); i++) {
             if (dag_sample[i] == -1) continue;
             seen[CS->GetCandidate(i, dag_sample[i])] = true;
@@ -92,10 +141,15 @@ namespace daf {
         }
 
         if (local_candidate_size[u] == 0) {
+            local_candidate_size[u] = 0;
+            dag_sample[u] = -1;
             return {0, 1};
         }
         if (vertex_id == query_->GetNumVertices()-1) {
-            return {local_candidate_size[u] * 1.0, 1};
+            double return_value = local_candidate_size[u] * 1.0;
+            local_candidate_size[u] = 0;
+            dag_sample[u] = -1;
+            return {return_value, 1};
         }
         // Branching sample
         local_cand_sum += local_candidate_size[u];
@@ -116,19 +170,20 @@ namespace daf {
             int idx = gen()%local_candidate_size[u];
             dag_sample[u] = local_candidates[u][idx];
             double est_; int num_used_;
-            std::tie(est_, num_used_) = SampleDAGVertex(dag_sample, vertex_id+1, num_samples / num_branches);
+            std::tie(est_, num_used_) = SampleDAGVertex(vertex_id+1, num_samples / num_branches);
             est += est_;
             num_used += num_used_;
             local_candidates[u][idx] = local_candidates[u][local_candidate_size[u]-1];
             local_candidate_size[u]--;
+            dag_sample[u] = -1;
         }
         dag_sample[u] = -1;
+        local_candidate_size[u] = 0;
         return {(sample_space_size * est / (num_branches - skipped)), num_used};
     }
 
     double RWI::IntersectionSamplingEstimate(Size num_samples) {
-        population.resize(data_->GetNumVertices());
-        for (int i = 0; i < data_->GetNumVertices(); i++) population[i] = i;
+        local_cand_sum = local_cand_cnt = 0;
         // Choose the vertex with minimum C(u) as root
         std::vector <int> num_cands(query_->GetNumVertices());
         for (int i = 0; i < query_->GetNumVertices(); i++) {
@@ -139,7 +194,6 @@ namespace daf {
         std::shuffle(root_candidates_.begin(), root_candidates_.end(), gen);
         double ht_est = 0.0;
         int ht_count = 0;
-        std::vector<int> dag_sample(query_->GetNumVertices(), -1);
         rwi_sample_count = num_samples;
         int num_root_samples = (root_candidates_.size() >> 6), last_used = 0;
         num_root_samples = std::min(num_root_samples, 100);
@@ -147,22 +201,23 @@ namespace daf {
         num_root_samples = std::min(num_root_samples, (int)root_candidates_.size());
         while (rwi_sample_count > 0) {
             if (rwi_sample_count < last_used / 10) break;
+            std::fill(dag_sample.begin(), dag_sample.end(), -1);
             memset(local_candidate_size, 0, query_->GetNumVertices());
             dag_sample[root] = (ht_count % root_candidates_.size());
             int num_sample_use = std::min(rwi_sample_count, num_samples / num_root_samples);
-            auto recursion_result = SampleDAGVertex(dag_sample, 1, num_sample_use);
+            auto recursion_result = SampleDAGVertex(1, num_sample_use);
 //            printf("Recursion result: %lf %d\n", recursion_result.first, recursion_result.second);
             ht_count++;
             ht_est += recursion_result.first;
             rwi_sample_count -= recursion_result.second;
             last_used = recursion_result.second;
         }
-        fprintf(stderr, "AVG Local Candset %.02lf\n",local_cand_sum*1.0/local_cand_cnt);
+        fprintf(stdout, "#Candset : %.02lf\n",local_cand_sum*1.0/local_cand_cnt);
         ht_est *= root_candidates_.size();
         ht_est /= ht_count;
-        for (auto &[u, v] : mp) {
-            fprintf(stderr, "Instances of sample space %d = %d\n",u,v);
-        }
+//        for (auto &[u, v] : mp) {
+//            fprintf(stderr, "Instances of sample space %d = %d\n",u,v);
+//        }
         return ht_est;
     }
 }
