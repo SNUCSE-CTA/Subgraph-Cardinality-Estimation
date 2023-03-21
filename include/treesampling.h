@@ -20,7 +20,7 @@ public:
     TreeSampling(const TreeSampling &) = delete;
 
     std::pair<double, int> UniformSamplingEstimate();
-    double EstimateEmbeddings(Size num_samples);
+    double EstimateEmbeddings();
 
     double total_trees_ = 0;
     CandidateSpace *CS;

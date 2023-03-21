@@ -62,7 +62,7 @@ void estimate(DataGraph &data, QueryGraph &query) {
     total_timer.Stop();
     std::cout << "Filter time: " << total_timer.GetTime() << " ms\n";
     sample_timer.Start();
-    double est = TSSolver->EstimateEmbeddings(num_samples);
+    double est = TSSolver->EstimateEmbeddings();
     sample_timer.Stop();
     total_timer.Add(sample_timer);
     std::cout << "Total time: " << std::fixed << total_timer.GetTime() << " ms\n";
@@ -163,7 +163,7 @@ int main(int argc, char *argv[]) {
                     query_names = {query_name};
                     break;
                 case 's':
-                    num_samples = std::atoi(argv[i + 1]);
+                    OPTION.sample_size_K = std::atoi(argv[i + 1]);
                     break;
                 case '-':
                     read_filter_option(std::string(argv[i]), std::string(argv[i+1]));

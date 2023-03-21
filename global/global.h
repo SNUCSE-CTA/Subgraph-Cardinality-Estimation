@@ -434,7 +434,7 @@ namespace daf {
         NEIGHBOR_BIPARTITE_SAFETY,
         EDGE_BIPARTITE_SAFETY
     };
-    static std::string edge_filter_to_string[3] = {"NEIGHBOR_SAFETY", "NEIGHBOR_BIPARTITE_SAFETY", "EDGE_BIPARTITE_SAFETY"};
+    static std::string egonet_filter_to_string[3] = {"NEIGHBOR_SAFETY", "NEIGHBOR_BIPARTITE_SAFETY", "EDGE_BIPARTITE_SAFETY"};
     enum REFINEMENT_ORDER {
         DAG_DP,
         PRIORITY_FIRST
@@ -452,10 +452,19 @@ namespace daf {
         EGONET_FILTER egonet_filter = EDGE_BIPARTITE_SAFETY;
         REFINEMENT_ORDER refinement_order = PRIORITY_FIRST;
         SAMPLING_ORDER sampling_order = OPENNEIGHBORS;
+        int sample_size_K = 50000;
         double cutoff = 0.05;
         void print() {
-            fprintf(stderr, "Filtering Level : Struct[%d] Egonet[%d], cutoff %.02lf\n", structure_filter, egonet_filter, cutoff);
-            fprintf(stdout, "Filtering Level : Struct[%d] Egonet[%d], cutoff %.02lf\n", structure_filter, egonet_filter, cutoff);
+            fprintf(stderr, "[OPT] Filtering : %s, %s, %s with cutoff = %.02lf\n",
+                    structure_filter_to_string[structure_filter].c_str(),egonet_filter_to_string[egonet_filter].c_str(),
+                    refinement_order_to_string[refinement_order].c_str(), cutoff);
+            fprintf(stdout, "[OPT] Filtering : %s, %s, %s with cutoff = %.02lf\n",
+                    structure_filter_to_string[structure_filter].c_str(),egonet_filter_to_string[egonet_filter].c_str(),
+                    refinement_order_to_string[refinement_order].c_str(), cutoff);
+            fprintf(stderr, "[OPT] Sampling : Order %s, K %d\n",
+                    sampling_order_to_string[sampling_order].c_str(), sample_size_K);
+            fprintf(stdout, "[OPT] Sampling : Order %s, K %d\n",
+                    sampling_order_to_string[sampling_order].c_str(), sample_size_K);
         }
     };
 }

@@ -67,16 +67,16 @@ namespace daf {
         query_ = query;
         dag_ = dag;
         CS->BuildCS(query, dag);
-//        std::fill(seen_.begin(), seen_.end(), 0);
-//        sample_dist_.clear();
-//        sample_candidates_.clear();
-//        sample_candidate_weights_.clear();
-//        sample_dist_.clear();
-//        root_candidates_.clear();
-//        Timer querytree_timer; querytree_timer.Start();
-//        BuildQueryTree();
-//        querytree_timer.Stop();
-//        std::cout << "Query Tree Building Time: " << querytree_timer.GetTime() << " ms\n";
+        std::fill(seen_.begin(), seen_.end(), 0);
+        sample_dist_.clear();
+        sample_candidates_.clear();
+        sample_candidate_weights_.clear();
+        sample_dist_.clear();
+        root_candidates_.clear();
+        Timer querytree_timer; querytree_timer.Start();
+        BuildQueryTree();
+        querytree_timer.Stop();
+        std::cout << "Query Tree Building Time: " << querytree_timer.GetTime() << " ms\n";
         RWI_->init(query, CS);
     }
 
@@ -486,26 +486,20 @@ namespace daf {
         return {total_trees_ * (success * 1.0 / t), success};
     }
 
-    double TreeSampling::EstimateEmbeddings(Size num_samples) {
-        double intersectionResult = RWI_->IntersectionSamplingEstimate(ceil(50000 * query_->GetNumVertices()));
-        return intersectionResult;
-        return 0.0;
-//        Timer sampletimer_uni, sampletimer_inter;
-//        sampletimer_uni.Start();
-//        std::pair<double, int> uniformResult = UniformSamplingEstimate();
-//        sampletimer_uni.Stop();
-//        std::cout << "Uniform Sampling time: " << std::fixed << sampletimer_uni.GetTime() << " ms\n";
-//        if (uniformResult.first < 0) {
-//            sampletimer_inter.Start();
-//            double intersectionResult = RWI_->IntersectionSamplingEstimate(ceil(50000 * query_->GetNumVertices() / sqrt(uniformResult.second + 1)));
-//            sampletimer_inter.Stop();
-//            std::cout << "Intersection Sampling time: " << std::fixed << sampletimer_inter.GetTime() << " ms\n";
-//            return intersectionResult;
-//        }
-//        return uniformResult.first;
-//        CS->printCS();
-//        double intersectionResult = RWI_.IntersectionSamplingEstimate(1000000);
-//        return intersectionResult;
+    double TreeSampling::EstimateEmbeddings() {
+        Timer sampletimer_uni, sampletimer_inter;
+        sampletimer_uni.Start();
+        std::pair<double, int> uniformResult = UniformSamplingEstimate();
+        sampletimer_uni.Stop();
+        std::cout << "Uniform Sampling time: " << std::fixed << sampletimer_uni.GetTime() << " ms\n";
+        if (uniformResult.first < 0) {
+            sampletimer_inter.Start();
+            double intersectionResult = RWI_->IntersectionSamplingEstimate(ceil(50000 * query_->GetNumVertices() / sqrt(uniformResult.second + 1)));
+            sampletimer_inter.Stop();
+            std::cout << "Intersection Sampling time: " << std::fixed << sampletimer_inter.GetTime() << " ms\n";
+            return intersectionResult;
+        }
+        return uniformResult.first;
     }
 
 }
