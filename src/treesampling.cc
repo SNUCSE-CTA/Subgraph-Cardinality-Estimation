@@ -48,8 +48,9 @@ namespace daf {
         return weighted_distr(gen);
     }
 
-    TreeSampling::TreeSampling(DataGraph *data, Option opt) {
+    TreeSampling::TreeSampling(DataGraph *data, Option opt_) {
         data_ = data;
+        opt = opt_;
         if (!data_->is_sparse()) {
             opt.structure_filter = NO_STRUCTURE_FILTER;
         }
@@ -494,7 +495,7 @@ namespace daf {
         std::cout << "Uniform Sampling time: " << std::fixed << sampletimer_uni.GetTime() << " ms\n";
         if (uniformResult.first < 0) {
             sampletimer_inter.Start();
-            double intersectionResult = RWI_->IntersectionSamplingEstimate(ceil(50000 * query_->GetNumVertices() / sqrt(uniformResult.second + 1)));
+            double intersectionResult = RWI_->IntersectionSamplingEstimate(ceil(opt.sample_size_K * query_->GetNumVertices() / sqrt(uniformResult.second + 1)));
             sampletimer_inter.Stop();
             std::cout << "Intersection Sampling time: " << std::fixed << sampletimer_inter.GetTime() << " ms\n";
             return intersectionResult;

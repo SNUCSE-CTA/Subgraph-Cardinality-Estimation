@@ -28,6 +28,7 @@ public:
     QueryGraph *query_;
     DAG *dag_;
     RWI *RWI_;
+    Option opt;
 
     std::vector<bool> seen_, query_seen_;
 //    std::vector<std::unordered_map<Vertex, double>> num_trees_;

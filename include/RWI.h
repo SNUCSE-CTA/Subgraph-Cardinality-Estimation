@@ -42,7 +42,7 @@ namespace daf {
         std::vector<std::pair<std::vector<Vertex>::iterator, std::vector<Vertex>::iterator>> iterators;
         std::vector<int> root_candidates_;
         double IntersectionSamplingEstimate(Size num_samples);
-        std::pair<double, int> SampleDAGVertex(int vertex_id, int num_samples);
+        std::pair<double, int> SampleDAGVertex(int vertex_id, int num_samples, double w);
 
         void multivector_intersection(int index, bool debug);
 

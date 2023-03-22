@@ -22,13 +22,7 @@ std::string query_name = "../../dataset/wordnet/query_graph/query_dense_4_1.grap
 //std::string data_name = "../../dataset/yeast/data_graph/yeast.graph";
 //std::string query_name = "../../dataset/yeast/query_graph/query_dense_24_161.graph";
 std::deque<std::string> query_names = {
-        query_name,
-        "../../dataset/wordnet/query_graph/query_dense_16_13.graph",
-        "../../dataset/wordnet/query_graph/query_dense_16_14.graph",
-        "../../dataset/wordnet/query_graph/query_dense_16_15.graph",
         "../../dataset/wordnet/query_graph/query_dense_16_16.graph",
-        "../../dataset/wordnet/query_graph/query_dense_16_17.graph",
-        "../../dataset/wordnet/query_graph/query_dense_16_18.graph"
 };
 
 int num_samples = 1000000;

@@ -25,7 +25,7 @@ static uint64_t counters[1000];
 
 static const int MAX_QUERY_VERTEX = 50, MAX_QUERY_EDGE = 250;
 static std::random_device rd;
-static std::mt19937 gen(0);
+static std::mt19937 gen(rd());
 constexpr Size INVALID_SZ = std::numeric_limits<Size>::max();
 constexpr Vertex INVALID_VTX = std::numeric_limits<Vertex>::max();
 constexpr Label INVALID_LB = std::numeric_limits<Label>::max();

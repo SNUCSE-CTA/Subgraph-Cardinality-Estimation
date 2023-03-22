@@ -7,6 +7,7 @@ namespace daf {
     int rwi_sample_count = 1000000;
     long long local_cand_cnt = 0, local_cand_sum = 0;
 
+    std::map<int, int> mp;
     void RWI::multivector_intersection(int index, bool debug = false) {
         if (local_candidate_size[index] > 0) return;
         int num_vectors = iterators.size();
@@ -114,9 +115,11 @@ namespace daf {
         });
         multivector_intersection(u);
     }
-    std::pair<double, int> RWI::SampleDAGVertex(int vertex_id, int num_samples) {
+    std::pair<double, int> RWI::SampleDAGVertex(int vertex_id, int num_samples, double w) {
+
         int u = ChooseExtendableVertex(vertex_id);
 
+        // GetExtendableCandidates(u);
         BuildExtendableCandidates(u);
         if (local_candidate_size[u] == 0) {
             return {0, 1};
@@ -140,6 +143,7 @@ namespace daf {
             seen[CS->GetCandidate(i, dag_sample[i])] = false;
         }
 
+        // Extendable Candidates OK
         if (local_candidate_size[u] == 0) {
             local_candidate_size[u] = 0;
             dag_sample[u] = -1;
@@ -149,37 +153,43 @@ namespace daf {
             double return_value = local_candidate_size[u] * 1.0;
             local_candidate_size[u] = 0;
             dag_sample[u] = -1;
-            return {return_value, 1};
+            return {w * return_value, 1};
         }
         // Branching sample
         local_cand_sum += local_candidate_size[u];
         local_cand_cnt += 1;
+        mp[vertex_id]++;
 
         int sample_space_size = local_candidate_size[u];
         int num_branches = 1 + std::max(sample_space_size >> 5, std::min(sample_space_size, 4));
         num_branches = std::min(num_branches, sample_space_size);
         if (num_seen[u] == query_->adj_list[u].size()) num_branches = 1;
-
-        double est = 0.0; int num_used = 0;
-        int skipped = 0;
-        for (int b = 0; b < num_branches; b++) {
-            if (num_used > num_samples) {
-                skipped = num_branches - b;
-                break;
-            }
+//        if (vertex_id == 1) {
+//            fprintf(stderr, "sample_space_size = %d, num_branches = %d\n", sample_space_size, num_branches);
+//        }
+        int i = 0;
+        int num_used = 0, last_used = 0;
+        double est = 0.0;
+        while (num_used < num_samples and local_candidate_size[u] > 0) {
             int idx = gen()%local_candidate_size[u];
             dag_sample[u] = local_candidates[u][idx];
+            int num_next_samples = (num_samples - num_used) / std::max(num_branches-i, 1);
+            if (num_next_samples == 0) num_next_samples = (num_samples - num_used);
+//            if (num_next_samples < last_used / 10) break;
             double est_; int num_used_;
-            std::tie(est_, num_used_) = SampleDAGVertex(vertex_id+1, num_samples / num_branches);
+//            printf("Try Recursion to %d with %d samples\n", vertex_id+1, num_next_samples);
+            std::tie(est_, num_used_) = SampleDAGVertex(vertex_id+1, num_next_samples, w * sample_space_size);
             est += est_;
             num_used += num_used_;
             local_candidates[u][idx] = local_candidates[u][local_candidate_size[u]-1];
             local_candidate_size[u]--;
             dag_sample[u] = -1;
+            last_used = num_next_samples;
+            i++;
         }
         dag_sample[u] = -1;
         local_candidate_size[u] = 0;
-        return {(sample_space_size * est / (num_branches - skipped)), num_used};
+        return {est / i, num_used};
     }
 
     double RWI::IntersectionSamplingEstimate(Size num_samples) {
@@ -195,26 +205,32 @@ namespace daf {
         double ht_est = 0.0;
         int ht_count = 0;
         rwi_sample_count = num_samples;
-        int num_root_samples = (root_candidates_.size() >> 6), last_used = 0;
-        num_root_samples = std::min(num_root_samples, 100);
-        num_root_samples = std::max(num_root_samples, 10);
+        fprintf(stderr, "num_samples = %d\n", num_samples);
+        int num_root_samples = (root_candidates_.size() >> 4), last_used = 0;
+        num_root_samples = std::min(num_root_samples, 128);
+        num_root_samples = std::max(num_root_samples, 64);
         num_root_samples = std::min(num_root_samples, (int)root_candidates_.size());
-        while (rwi_sample_count > 0) {
-            if (rwi_sample_count < last_used / 10) break;
+        fprintf(stderr, "num_root_samples = %d (root_cand_size = %d)\n", num_root_samples, (int)root_candidates_.size());
+        int used_samples = 0;
+        while (used_samples < rwi_sample_count) {
             std::fill(dag_sample.begin(), dag_sample.end(), -1);
             memset(local_candidate_size, 0, query_->GetNumVertices());
             dag_sample[root] = (ht_count % root_candidates_.size());
-            int num_sample_use = std::min(rwi_sample_count, num_samples / num_root_samples);
-            auto recursion_result = SampleDAGVertex(1, num_sample_use);
+            int num_sample_use = (rwi_sample_count - used_samples) / (std::max(num_root_samples-ht_count, 1));
+//            if (num_sample_use < last_used / 10) break;
+//            printf("Try to use %d samples...\n", num_sample_use);
+            auto recursion_result = SampleDAGVertex(1, num_sample_use, 1.0 * root_candidates_.size());
 //            printf("Recursion result: %lf %d\n", recursion_result.first, recursion_result.second);
-            ht_count++;
             ht_est += recursion_result.first;
-            rwi_sample_count -= recursion_result.second;
-            last_used = recursion_result.second;
+            used_samples += recursion_result.second;
+            last_used = num_sample_use;
+            ht_count++;
+            if (ht_count == root_candidates_.size()) break;
         }
         fprintf(stdout, "#Candset : %.02lf\n",local_cand_sum*1.0/local_cand_cnt);
-        ht_est *= root_candidates_.size();
+//        ht_est *= root_candidates_.size();
         ht_est /= ht_count;
+//        fprintf(stdout, "Total %d nodes explored\n",local_cand_cnt);
 //        for (auto &[u, v] : mp) {
 //            fprintf(stderr, "Instances of sample space %d = %d\n",u,v);
 //        }
