@@ -207,8 +207,8 @@ namespace daf {
         rwi_sample_count = num_samples;
         fprintf(stderr, "num_samples = %d\n", num_samples);
         int num_root_samples = (root_candidates_.size() >> 4), last_used = 0;
-        num_root_samples = std::min(num_root_samples, 128);
-        num_root_samples = std::max(num_root_samples, 64);
+        num_root_samples = std::min(num_root_samples, 64);
+        num_root_samples = std::max(num_root_samples, 32);
         num_root_samples = std::min(num_root_samples, (int)root_candidates_.size());
         fprintf(stderr, "num_root_samples = %d (root_cand_size = %d)\n", num_root_samples, (int)root_candidates_.size());
         int used_samples = 0;
