@@ -161,9 +161,10 @@ namespace daf {
         mp[vertex_id]++;
 
         int sample_space_size = local_candidate_size[u];
-        int num_branches = 1 + std::max(sample_space_size >> 5, std::min(sample_space_size, 4));
+//        int num_branches = 1 + std::max(sample_space_size >> 3, std::min(sample_space_size, 4));
+        int num_branches = std::min(std::max((int)sqrt(sample_space_size), 4), num_samples);
         num_branches = std::min(num_branches, sample_space_size);
-        if (num_seen[u] == query_->adj_list[u].size()) num_branches = 1;
+//        if (num_seen[u] == query_->adj_list[u].size()) num_branches = 1;
 //        if (vertex_id == 1) {
 //            fprintf(stderr, "sample_space_size = %d, num_branches = %d\n", sample_space_size, num_branches);
 //        }
@@ -184,8 +185,8 @@ namespace daf {
             local_candidates[u][idx] = local_candidates[u][local_candidate_size[u]-1];
             local_candidate_size[u]--;
             dag_sample[u] = -1;
-            last_used = num_next_samples;
             i++;
+            if (i == num_branches) break;
         }
         dag_sample[u] = -1;
         local_candidate_size[u] = 0;
@@ -206,9 +207,9 @@ namespace daf {
         int ht_count = 0;
         rwi_sample_count = num_samples;
         fprintf(stderr, "num_samples = %d\n", num_samples);
-        int num_root_samples = (root_candidates_.size() >> 4), last_used = 0;
-        num_root_samples = std::min(num_root_samples, 64);
-        num_root_samples = std::max(num_root_samples, 32);
+        int num_root_samples = (root_candidates_.size()), last_used = 0;
+//        num_root_samples = std::min(num_root_samples, 512);
+//        num_root_samples = std::max(num_root_samples, 32);
         num_root_samples = std::min(num_root_samples, (int)root_candidates_.size());
         fprintf(stderr, "num_root_samples = %d (root_cand_size = %d)\n", num_root_samples, (int)root_candidates_.size());
         int used_samples = 0;
@@ -225,7 +226,7 @@ namespace daf {
             used_samples += recursion_result.second;
             last_used = num_sample_use;
             ht_count++;
-            if (ht_count == root_candidates_.size()) break;
+            if (ht_count == num_root_samples) break;
         }
         fprintf(stdout, "#Candset : %.02lf\n",local_cand_sum*1.0/local_cand_cnt);
 //        ht_est *= root_candidates_.size();
