@@ -57,7 +57,7 @@ namespace daf {
         opt.print();
         CS = new CandidateSpace(data, opt);
         seen_.resize(data_->GetNumVertices());
-        RWI_ = new RWI(data, opt);
+        RWI_ = new GraphSampling(data, opt);
         num_trees_ = new double*[MAX_QUERY_VERTEX];
         for (int i = 0; i < MAX_QUERY_VERTEX; i++) {
             num_trees_[i] = new double[data_->GetNumVertices()];

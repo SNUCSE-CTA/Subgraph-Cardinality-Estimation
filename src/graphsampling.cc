@@ -1,4 +1,4 @@
-#include "include/RWI.h"
+#include "include/graphsampling.h"
 #include "global/timer.h"
 
 using namespace daf;
@@ -8,7 +8,7 @@ namespace daf {
     long long local_cand_cnt = 0, local_cand_sum = 0;
 
     std::map<int, int> mp;
-    void RWI::multivector_intersection(int index, bool debug = false) {
+    void GraphSampling::multivector_intersection(int index, bool debug = false) {
         if (local_candidate_size[index] > 0) return;
         int num_vectors = iterators.size();
         if (num_vectors == 1) {
@@ -41,7 +41,7 @@ namespace daf {
         }
     }
 
-    int RWI::ChooseExtendableVertex(int vertex_id) {
+    int GraphSampling::ChooseExtendableVertex(int vertex_id) {
         int u = -1;
         if (opt.sampling_order == OPENNEIGHBORS) {
             int max_open_neighbors = 0;
@@ -103,7 +103,7 @@ namespace daf {
         return u;
     }
 
-    void RWI::BuildExtendableCandidates(int u) {
+    void GraphSampling::BuildExtendableCandidates(int u) {
         local_candidate_size[u] = 0;
         iterators.clear();
         for (int q_nbr : query_->adj_list[u]) {
@@ -115,7 +115,7 @@ namespace daf {
         });
         multivector_intersection(u);
     }
-    std::pair<double, int> RWI::SampleDAGVertex(int vertex_id, int num_samples, double w) {
+    std::pair<double, int> GraphSampling::SampleDAGVertex(int vertex_id, int num_samples, double w) {
 
         int u = ChooseExtendableVertex(vertex_id);
 
@@ -193,7 +193,7 @@ namespace daf {
         return {est / i, num_used};
     }
 
-    double RWI::IntersectionSamplingEstimate(Size num_samples) {
+    double GraphSampling::IntersectionSamplingEstimate(Size num_samples) {
         local_cand_sum = local_cand_cnt = 0;
         // Choose the vertex with minimum C(u) as root
         std::vector <int> num_cands(query_->GetNumVertices());

@@ -11,7 +11,7 @@
 #include "include/daf_data_graph.h"
 #include "include/daf_query_graph.h"
 #include "include/treesampling.h"
-#include "include/RWI.h"
+#include "include/graphsampling.h"
 
 using namespace daf;
 

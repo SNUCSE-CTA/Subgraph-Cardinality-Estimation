@@ -2,6 +2,7 @@ build/
 cmake-build-*/
 graphs/
 dataset/
+.DS_Store
 .idea/
 # Prerequisites
 *.d

@@ -3,7 +3,7 @@
 #include "include/daf_candidate_space.h"
 #pragma once
 namespace daf {
-    class RWI {
+    class GraphSampling {
     public:
         Option opt;
         CandidateSpace *CS;
@@ -12,7 +12,7 @@ namespace daf {
         Vertex root;
         bool* seen;
         int **local_candidates, *local_candidate_size;
-        RWI(DataGraph *data, Option opt_){
+        GraphSampling(DataGraph *data, Option opt_){
             data_ = data;
             seen = new bool[data->GetNumVertices()];
             local_candidates = new int*[MAX_QUERY_VERTEX];
@@ -22,7 +22,7 @@ namespace daf {
             local_candidate_size = new int[MAX_QUERY_VERTEX];
             opt = opt_;
         };
-        ~RWI(){
+        ~GraphSampling(){
             for (int i = 0; i < MAX_QUERY_VERTEX; i++) {
                 delete[] local_candidates[i];
             }

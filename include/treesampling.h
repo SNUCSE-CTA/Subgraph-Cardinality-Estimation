@@ -9,7 +9,7 @@
 #include "include/daf_data_graph.h"
 #include "include/daf_query_graph.h"
 #include "include/daf_candidate_space.h"
-#include "include/RWI.h"
+#include "include/graphsampling.h"
 namespace daf {
 
     class TreeSampling {
@@ -27,7 +27,7 @@ public:
     DataGraph *data_;
     QueryGraph *query_;
     DAG *dag_;
-    RWI *RWI_;
+    GraphSampling *RWI_;
     Option opt;
 
     std::vector<bool> seen_, query_seen_;
