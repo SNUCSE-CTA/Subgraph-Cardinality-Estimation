@@ -1,151 +1,90 @@
 #include <algorithm>
 #include <iostream>
 #include <string>
-#include <iomanip>
 #include <deque>
-#include <vector>
 
 #include "global/timer.h"
-#include "include/daf_candidate_space.h"
-#include "include/daf_dag.h"
-#include "include/daf_data_graph.h"
-#include "include/daf_query_graph.h"
-#include "include/treesampling.h"
-#include "include/graphsampling.h"
+#include "include/dag.h"
+#include "include/data_graph.h"
+#include "include/query_graph.h"
+#include "include/FaSTest.h"
 
-using namespace daf;
+using namespace CardEst;
 
-std::string dataset, ans_file_name, data_root = "../../dataset/";
-//std::string dataset = "aids", ans_file_name = dataset+"_ans", data_root = "../../dataset/";
-std::string data_name = "../../dataset/wordnet/data_graph/wordnet.graph";
-std::string query_name = "../../dataset/wordnet/query_graph/query_dense_4_1.graph";
-//std::string data_name = "../../dataset/yeast/data_graph/yeast.graph";
-//std::string query_name = "../../dataset/yeast/query_graph/query_dense_24_161.graph";
-std::deque<std::string> query_names = {
-        "../../dataset/wordnet/query_graph/query_dense_16_50.graph",
-};
+std::string dataset = "yeast", ans_file_name, data_root = "../dataset/";
+std::string data_name, query_name = "../dataset/yeast/query_graph/query_sparse_16_110.graph";
+std::deque<std::string> query_names;
 
-int num_samples = 1000000;
+bool solve_all = false;
 int q_cnt = 0;
-double cumulative_time_ = 0;
-std::unordered_map<std::string, double> true_cnt;
-
-
-TreeSampling *TSSolver;
+std::unordered_map<std::string, long long> true_cnt;
+FaSTest *Estimator;
 Option OPTION;
 
 void estimate(DataGraph &data, QueryGraph &query) {
     GlobalTimer.Start();
-    std::cout << "Query Graph: " << query_name << "\n";
-    fflush(stdout);
-    Timer total_timer, sample_timer;
-    total_timer.Start();
+    Timer total_timer;
     query.LoadAndProcessGraph(data);
-    total_timer.Stop();
-    std::cout << "Query Preprocess time: " << std::fixed << GlobalTimer.Peek() << " ms\n";
 
     total_timer.Start();
-    daf::DAG dag(data, query);
+    CardEst::OrderedQueryGraph g(data, query); g.BuildOrderedQueryGraph();
+    Estimator->PrepareQuery(&query, &g);
+    double est = Estimator->EstimateEmbeddings();
     total_timer.Stop();
-
-    total_timer.Start();
-    dag.BuildDAG();
-    total_timer.Stop();
-    total_timer.Start();
-    TSSolver->RegisterQuery(&query, &dag);
-    total_timer.Stop();
-    std::cout << "Filter time: " << total_timer.GetTime() << " ms\n";
-    sample_timer.Start();
-    double est = TSSolver->EstimateEmbeddings();
-    sample_timer.Stop();
-    total_timer.Add(sample_timer);
-    std::cout << "Total time: " << std::fixed << total_timer.GetTime() << " ms\n";
-    std::cout << "#TRUE : " << std::scientific << std::setprecision(4) << true_cnt[query_name] << std::endl;
-    std::cout << "#Matches(Approx) : " << std::scientific << std::setprecision(4) << est << std::endl;
-    std::cerr << "#Matches(Approx) : " << std::scientific << std::setprecision(4) << est << std::endl;
-    std::cout << "#Tree : " << std::scientific << std::setprecision(4) << TSSolver->total_trees_ << std::endl;
-    std::cout << "Query Finished" << std::endl;
-
-
-    fprintf(stderr, "%-10s\t%-10s\tQ%04d/%04lu:\t%s...\n",
-            "TreeSampling", dataset.c_str(),
-            q_cnt, query_names.size(), query_name.c_str());
-    cumulative_time_ += total_timer.GetTime();
-    std::cerr << std::fixed << std::setprecision(2) << "Total time: " << total_timer.GetTime() << " ms\t\t";
-    std::cerr << std::fixed << "Cumul time: " << cumulative_time_/1000 << " sec\t" << cumulative_time_/60000 << " min\n";
+    q_cnt++;
+    long long tcnt = true_cnt.find(query_name) == true_cnt.end() ? -1 : true_cnt[query_name];
+    fprintf(stdout, "[%d / %d] Query : %s\n",q_cnt, (int)query_names.size(),query_name.c_str());
+    fprintf(stdout, "  Est:  %20lld\n  True: %20lld\n  Time: %20.02lf ms\n\n",
+         llrint(est), tcnt, total_timer.GetTime());
 }
 
-void loadAnswers(std::string dataset) {
+void PrepareAnswers() {
     ans_file_name = data_root+dataset+"/"+dataset+"_ans.txt";
-    std::cerr << ans_file_name << std::endl;
-    std::ifstream ans_in(ans_file_name);
-    std::cerr << "Reading ans file for " << dataset << " " << fileSize(ans_file_name.c_str()) << std::endl;
-    while (!ans_in.eof()) {
-        std::string name, t, c;
-        ans_in >> name >> t >> c;
-        if (name.empty() || t.empty() || c.empty()) continue;
-        name = data_root+dataset+"/query_graph/"+name;
-        std::string::size_type sz = 0;
-        true_cnt[name] = atoll(c.c_str()) * 1.0;
-//        std::cerr << "Ans " << name << " " << true_cnt[name] << std::endl;
-    }
-}
-void loadFullDataset() {
-    std::cerr << "Loading dataset " << dataset << std::endl;
     data_name = data_root+dataset+"/data_graph/"+dataset+".graph";
-    ans_file_name = data_root+dataset+"/"+dataset+"_ans.txt";
-    std::cerr << data_name << std::endl;
-    std::cerr << ans_file_name << std::endl;
+    if (solve_all) {
+        query_names.clear();
+    }
     std::ifstream ans_in(ans_file_name);
-    query_names.clear();
-    std::cerr << "Reading ans file for " << dataset << " " << fileSize(ans_file_name.c_str()) << std::endl;
     while (!ans_in.eof()) {
-        std::string name, t, c;
-        ans_in >> name >> t >> c;
-        if (name.empty() || t.empty() || c.empty()) continue;
+        std::string name, c;
+        ans_in >> name >> c;
+        if (name.empty() || c.empty()) continue;
         name = data_root+dataset+"/query_graph/"+name;
-        query_names.push_back(name);
-        std::string::size_type sz = 0;
-        true_cnt[name] = atoll(c.c_str()) * 1.0;
-//        std::cerr << "Ans " << name << " " << true_cnt[name] << std::endl;
+        true_cnt[name] = atoll(c.c_str());
+        if (solve_all) {
+            query_names.push_back(name);
+        }
     }
 }
+
 
 void read_filter_option(const std::string& opt, const std::string &filter) {
-    if (opt.substr(2) == "EGONET") {
-        if (filter == "NEIGHBOR_SAFETY")
-            OPTION.egonet_filter = daf::NEIGHBOR_SAFETY;
-        else if (filter == "NEIGHBOR_BIPARTITE_SAFETY")
-            OPTION.egonet_filter = daf::NEIGHBOR_BIPARTITE_SAFETY;
+    if (opt.substr(2) == "NEIGHBORHOOD") {
+        if (filter == "NS")
+            OPTION.neighborhood_filter = CardEst::NEIGHBOR_SAFETY;
+        else if (filter == "NB")
+            OPTION.neighborhood_filter = CardEst::NEIGHBOR_BIPARTITE_SAFETY;
         else
-            OPTION.egonet_filter = daf::EDGE_BIPARTITE_SAFETY;
+            OPTION.neighborhood_filter = CardEst::EDGE_BIPARTITE_SAFETY;
     }
     else if (opt.substr(2) == "STRUCTURE") {
-        if (filter == "NONE")
-            OPTION.structure_filter = daf::NO_STRUCTURE_FILTER;
-        else if (filter == "TRIANGLE_SAFETY")
-            OPTION.structure_filter = daf::TRIANGLE_SAFETY;
-        else if (filter == "TRIANGLE_BIPARTITE_SAFETY")
-            OPTION.structure_filter = daf::TRIANGLE_BIPARTITE_SAFETY;
-        else if (filter == "FOURCYCLE_SAFETY")
-            OPTION.structure_filter = daf::FOURCYCLE_SAFETY;
-        else if (filter == "FOURCYCLE_SAFETY_DAGDP") {
-            OPTION.refinement_order = daf::DAG_DP;
-            OPTION.structure_filter = daf::FOURCYCLE_SAFETY;
-        }
+        if (filter == "X")
+            OPTION.structure_filter = CardEst::NO_STRUCTURE_FILTER;
+        else if (filter == "3")
+            OPTION.structure_filter = CardEst::TRIANGLE_SAFETY;
+        else if (filter == "4")
+            OPTION.structure_filter = CardEst::FOURCYCLE_SAFETY;
     }
     else if (opt.substr(2) == "CUTOFF") {
         OPTION.cutoff = atof(opt.c_str());
     }
 }
-int main(int argc, char *argv[]) {
 
+
+int main(int argc, char *argv[]) {
     for (int i = 1; i < argc; ++i) {
         if (argv[i][0] == '-') {
             switch (argv[i][1]) {
-                case 'R':
-                    data_root = argv[i + 1];
-                    break;
                 case 'D':
                     dataset = argv[i + 1];
                     break;
@@ -159,28 +98,24 @@ int main(int argc, char *argv[]) {
                 case 's':
                     OPTION.sample_size_K = std::atoi(argv[i + 1]);
                     break;
+                case 'A':
+                    solve_all = true;
+                    break;
                 case '-':
                     read_filter_option(std::string(argv[i]), std::string(argv[i+1]));
                     break;
             }
         }
     }
-    if (dataset.length() > 0) {
-        loadFullDataset();
-    }
-    loadAnswers("wordnet");
+    PrepareAnswers();
 
     std::cout << "Loading data graph..." << std::endl;
     DataGraph data(data_name);
     data.LoadAndProcessGraph();
 
-//    OPTION.refinement_order = DAG_DP;
-//    OPTION.structure_filter = daf::NO_STRUCTURE_FILTER;
-//    OPTION.egonet_filter = daf::NEIGHBOR_BIPARTITE_SAFETY;
-    TSSolver = new TreeSampling(&data, OPTION);
+    Estimator = new FaSTest(&data, OPTION);
 
     for (std::string &qname : query_names) {
-        q_cnt++;
         query_name = qname;
         QueryGraph query(qname);
         estimate(data, query);

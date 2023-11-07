@@ -29,4 +29,4 @@ private:
 
 static Timer GlobalTimer, functionTimer;
 
-#endif  // GLOBAL_TIMER_H_
+#endif  

@@ -1,8 +1,8 @@
-#ifndef SUBGRAPHSAMPLER_RWI_H
-#define SUBGRAPHSAMPLER_RWI_H
-#include "include/daf_candidate_space.h"
+#ifndef GRAPHSAMPLING_H
+#define GRAPHSAMPLING_H
+#include "include/candidate_space.h"
 #pragma once
-namespace daf {
+namespace CardEst {
     class GraphSampling {
     public:
         Option opt;
@@ -34,15 +34,15 @@ namespace daf {
             CS = cs;
             query_ = query;
             num_seen.resize(query_->GetNumVertices(), 0);
-            dag_sample.resize(query_->GetNumVertices(), -1);
+            sample.resize(query_->GetNumVertices(), -1);
             memset(seen, 0, data_->GetNumVertices());
             memset(local_candidate_size, 0, query->GetNumVertices());
         }
-        std::vector<int> num_seen, dag_sample;
+        std::vector<int> num_seen, sample;
         std::vector<std::pair<std::vector<Vertex>::iterator, std::vector<Vertex>::iterator>> iterators;
         std::vector<int> root_candidates_;
         double IntersectionSamplingEstimate(Size num_samples);
-        std::pair<double, int> SampleDAGVertex(int vertex_id, int num_samples, double w);
+        std::pair<double, int> EstimateWM(int vertex_id, int num_samples, double w);
 
         void multivector_intersection(int index, bool debug);
 
@@ -52,4 +52,4 @@ namespace daf {
     };
 
 }
-#endif //SUBGRAPHSAMPLER_RWI_H
+#endif 

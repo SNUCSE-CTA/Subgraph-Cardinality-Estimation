@@ -14,20 +14,16 @@
 #include <fstream>
 #include <boost/math/distributions.hpp>
 #include <boost/functional/hash.hpp>
-#include "global/log.h"
-static int functionCallCounter;
+
 using Size = int32_t;
 using Vertex = int32_t;
 using Label = int32_t;
 using QueryDegree = int8_t;
 using VertexPair = std::pair<Vertex, Vertex>;
-static uint64_t counters[1000];
 
 static const int MAX_QUERY_VERTEX = 50, MAX_QUERY_EDGE = 250;
 static std::random_device rd;
 static std::mt19937 gen(rd());
-constexpr Size INVALID_SZ = std::numeric_limits<Size>::max();
-constexpr Vertex INVALID_VTX = std::numeric_limits<Vertex>::max();
 constexpr Label INVALID_LB = std::numeric_limits<Label>::max();
 
 namespace std {
@@ -40,7 +36,7 @@ namespace std {
             return seed;
         }
     };
-}  // namespace std
+}  
 
 struct UnionFind {
     std::vector<uint32_t> par, sz;
@@ -68,7 +64,6 @@ struct UnionFind {
     }
 };
 
-static bool __p = false;
 struct BipartiteMaximumMatching {
     int *left, *right;
     int left_len, right_len;
@@ -83,7 +78,6 @@ struct BipartiteMaximumMatching {
     int **lower_graph, *lower_graph_size;
     int **upper_graph, *upper_graph_size;
 
-    // Finding Strongly Connected Components
     int *Q, *S;
     int qright = 0, qleft = 0;
     int stkright = 0;
@@ -157,8 +151,6 @@ struct BipartiteMaximumMatching {
             }
         }
 
-        // SCC (Tarjan's algorithm)
-        // BFS traversal
         std::memset(bfs_visited, 0, sizeof(bool) * right_len);
         for (int i = num_matched_ans; i < num_rights; i++) {
             Q[qright++] = i;
@@ -179,7 +171,6 @@ struct BipartiteMaximumMatching {
     }
 
     void global_initialize(int max_left, int max_right) {
-//        fprintf(stderr, "BPSolver init to %d by %d\n",max_left,max_right);
         Q = new int[max_right];
         S = new int[max_right];
         qleft = qright = stkright = 0;
@@ -272,7 +263,6 @@ struct BipartiteMaximumMatching {
         }
     }
 
-    // Time: O( V(V+E) )
     int solve(int ignore = -1) {
         std::memset(left, -1, sizeof(int) * left_len);
         int ans = 0;
@@ -304,7 +294,6 @@ struct BipartiteMaximumMatching {
     }
 
     bool single_dfs(Vertex r) {
-//        printf("Single_DFS %d\n",r);
         if (used[r]) return false;
         used[r] = true;
         for (int i = 0; i < adj_size[r]; i++) {
@@ -316,156 +305,29 @@ struct BipartiteMaximumMatching {
         }
         return false;
     }
-
-    void print() {
-        for (int i = 0; i < left_len; i++) {
-            if (adj_size[i] == 0) continue;
-            printf("ADJ[%d] : (Match %d) ", i, left[i]);
-            for (int j = 0; j < adj_size[i]; j++) {
-                printf("%d\t", adj[i][j]);
-            }
-            printf("\n");
-        }
-//        for (int i = 0; i < left_len; i++) {
-//            printf("%d[%d]\t", left[i], used[i]);
-//        }
-//        printf("\n");
-    }
 };
-//
-//struct BipartiteMaximumMatching {
-//    int n_left, n_right, flow = 0;
-//    std::vector<std::vector<int>> g;
-//    std::vector<int> match_from_left, match_from_right;
-//
-//    BipartiteMaximumMatching(int _n_left, int _n_right)
-//            : n_left(_n_left),
-//              n_right(_n_right),
-//              g(_n_left),
-//              match_from_left(_n_left, -1),
-//              match_from_right(_n_right, -1),
-//              dist(_n_left) {}
-//
-//    void add_edge(int u, int v) { g[u].push_back(v); }
-//
-//    std::vector<int> dist;
-//
-//    void bfs() {
-//        std::queue<int> q;
-//        for (int u = 0; u < n_left; ++u) {
-//            if (!~match_from_left[u])
-//                q.push(u), dist[u] = 0;
-//            else
-//                dist[u] = -1;
-//        }
-//        while (!q.empty()) {
-//            int u = q.front();
-//            q.pop();
-//            for (auto v : g[u])
-//                if (~match_from_right[v] && !~dist[match_from_right[v]]) {
-//                    dist[match_from_right[v]] = dist[u] + 1;
-//                    q.push(match_from_right[v]);
-//                }
-//        }
-//    }
-//
-//    bool dfs(int u) {
-//        for (auto v : g[u])
-//            if (!~match_from_right[v]) {
-//                match_from_left[u] = v, match_from_right[v] = u;
-//                return true;
-//            }
-//        for (auto v : g[u])
-//            if (dist[match_from_right[v]] == dist[u] + 1 &&
-//                dfs(match_from_right[v])) {
-//                match_from_left[u] = v, match_from_right[v] = u;
-//                return true;
-//            }
-//        return false;
-//    }
-//
-//    int solve() {
-//        while (true) {
-//            bfs();
-//            int augment = 0;
-//            for (int u = 0; u < n_left; ++u)
-//                if (!~match_from_left[u]) augment += dfs(u);
-//            if (!augment) break;
-//            flow += augment;
-//        }
-//        return flow;
-//    }
-//
-//    std::vector<std::pair<int, int>> get_edges() {
-//        std::vector<std::pair<int, int>> ans;
-//        for (int u = 0; u < n_left; ++u)
-//            if (match_from_left[u] != -1)
-//                ans.emplace_back(u, match_from_left[u]);
-//        return ans;
-//    }
-//};
 
-
-static std::streampos fileSize(const char *filePath) {
-
-    std::streampos fsize = 0;
-    std::ifstream file(filePath, std::ios::binary);
-
-    fsize = file.tellg();
-    file.seekg(0, std::ios::end);
-    fsize = file.tellg() - fsize;
-    file.close();
-
-    return fsize;
-}
-
-
-
-namespace daf {
+namespace CardEst {
     enum STRUCTURE_FILTER {
         NO_STRUCTURE_FILTER,
         TRIANGLE_SAFETY,
-        TRIANGLE_BIPARTITE_SAFETY,
         FOURCYCLE_SAFETY
     };
-    static std::string structure_filter_to_string[4] = {"NO_STRUCTURE_FILTER", "TRIANGLE_SAFETY", "TRIANGLE_BIPARTITE_SAFETY", "FOURCYCLE_SAFETY"};
-    enum EGONET_FILTER {
+    enum NEIGHBORHOOD_FILTER {
         NEIGHBOR_SAFETY,
         NEIGHBOR_BIPARTITE_SAFETY,
         EDGE_BIPARTITE_SAFETY
     };
-    static std::string egonet_filter_to_string[3] = {"NEIGHBOR_SAFETY", "NEIGHBOR_BIPARTITE_SAFETY", "EDGE_BIPARTITE_SAFETY"};
     enum REFINEMENT_ORDER {
         DAG_DP,
         PRIORITY_FIRST
     };
-    static std::string refinement_order_to_string[2] = {"DAG_DP", "PRIORITY_FIRST"};
-
-    enum SAMPLING_ORDER {
-        OPENNEIGHBORS,
-        APPROXEXTCAND
-    };
-    static std::string sampling_order_to_string[2] = {"OPENNEIGHBORS", "APPROXEXTCAND"};
-
     struct Option {
         STRUCTURE_FILTER structure_filter = FOURCYCLE_SAFETY;
-        EGONET_FILTER egonet_filter = EDGE_BIPARTITE_SAFETY;
+        NEIGHBORHOOD_FILTER neighborhood_filter = EDGE_BIPARTITE_SAFETY;
         REFINEMENT_ORDER refinement_order = PRIORITY_FIRST;
-        SAMPLING_ORDER sampling_order = OPENNEIGHBORS;
         int sample_size_K = 50000;
         double cutoff = 0.05;
-        void print() {
-            fprintf(stderr, "[OPT] Filtering : %s, %s, %s with cutoff = %.02lf\n",
-                    structure_filter_to_string[structure_filter].c_str(),egonet_filter_to_string[egonet_filter].c_str(),
-                    refinement_order_to_string[refinement_order].c_str(), cutoff);
-            fprintf(stdout, "[OPT] Filtering : %s, %s, %s with cutoff = %.02lf\n",
-                    structure_filter_to_string[structure_filter].c_str(),egonet_filter_to_string[egonet_filter].c_str(),
-                    refinement_order_to_string[refinement_order].c_str(), cutoff);
-            fprintf(stderr, "[OPT] Sampling : Order %s, K %d\n",
-                    sampling_order_to_string[sampling_order].c_str(), sample_size_K);
-            fprintf(stdout, "[OPT] Sampling : Order %s, K %d\n",
-                    sampling_order_to_string[sampling_order].c_str(), sample_size_K);
-        }
     };
 }
-#endif  // GLOBAL_GLOBAL_H_
+#endif 
